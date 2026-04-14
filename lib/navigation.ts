@@ -28,6 +28,11 @@ export const platformNavigation: PlatformNavItem[] = [
     roles: ["admin", "operations_manager", "support", "sales", "technician"],
   },
   {
+    label: "Work Orders",
+    href: "/work-orders",
+    roles: ["admin", "operations_manager", "support", "technician"],
+  },
+  {
     label: "Scheduling",
     href: "/scheduling",
     roles: ["admin", "operations_manager", "support", "sales", "technician"],
@@ -35,6 +40,11 @@ export const platformNavigation: PlatformNavItem[] = [
   {
     label: "Walkthroughs",
     href: "/walkthroughs",
+    roles: ["admin", "operations_manager", "support", "sales"],
+  },
+  {
+    label: "Estimates",
+    href: "/estimates",
     roles: ["admin", "operations_manager", "support", "sales"],
   },
 ];
