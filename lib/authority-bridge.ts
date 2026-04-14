@@ -3,7 +3,6 @@ const encoder = new TextEncoder();
 export const AUTHORITY_COOKIE_NAME = "fsm_authority";
 export const AUTHORITY_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8;
 export const AUTHORITY_SECRET_ENV_KEY = "FSM_AUTH_BRIDGE_SECRET";
-export const AUTHORITY_BOOTSTRAP_USER_ENV_KEY = "FSM_DEV_AUTH_USER_ID";
 
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes)

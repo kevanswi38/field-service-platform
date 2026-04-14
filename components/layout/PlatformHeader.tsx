@@ -1,18 +1,11 @@
 "use client";
 
 import { useRole } from "@/components/providers/RoleProvider";
-import { PlatformRole } from "@/types/roles";
-
-const roles: PlatformRole[] = [
-  "admin",
-  "operations_manager",
-  "support",
-  "sales",
-  "technician",
-];
 
 export default function PlatformHeader() {
-  const { role, setRole } = useRole();
+  const { role, user, signOut } = useRole();
+  const displayName =
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.email;
 
   return (
     <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
@@ -31,17 +24,18 @@ export default function PlatformHeader() {
             Active workspace
           </div>
 
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as PlatformRole)}
-            className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-slate-500"
+          <div className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-700 shadow-sm">
+            <p className="font-medium text-slate-900">{displayName}</p>
+            <p className="text-xs text-slate-500">Role: {role}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-500"
           >
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            Sign out
+          </button>
         </div>
       </div>
     </header>

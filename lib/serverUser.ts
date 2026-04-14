@@ -9,6 +9,9 @@ import {
 export type ServerUser = {
   id: string;
   role: PlatformRole;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
 };
 
 type ServerUserResult =
@@ -42,45 +45,60 @@ export function readForbiddenResponse() {
 }
 
 // Temporary request-bound auth resolver until full session auth is wired.
-// Source of identity is an app-signed httpOnly cookie issued by proxy.ts.
+// Source of identity is an app-signed httpOnly cookie issued by /api/auth/session.
 // Client-provided actor fields and UI role state are not authoritative.
-export async function resolveServerUser(
-  request: NextRequest
-): Promise<ServerUserResult> {
-  const rawAuthorityCookie = request.cookies.get(AUTHORITY_COOKIE_NAME)?.value;
-  const cookieUserId = await verifyAuthorityCookie(rawAuthorityCookie);
-
-  if (!cookieUserId) {
-    return {
-      ok: false,
-      response: unauthorized(
-        "Unauthorized: missing or invalid authority cookie (temporary auth bridge)."
-      ),
-    };
-  }
-
+async function resolveSessionUserById(userId: string): Promise<ServerUser | null> {
   const user = await prisma.user.findUnique({
-    where: { id: cookieUserId },
+    where: { id: userId },
     select: {
       id: true,
       role: true,
+      email: true,
+      firstName: true,
+      lastName: true,
       isActive: true,
     },
   });
 
   if (!user || !user.isActive) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+  };
+}
+
+export async function resolveSessionUserFromCookie(
+  rawAuthorityCookie: string | null | undefined
+): Promise<ServerUser | null> {
+  const cookieUserId = await verifyAuthorityCookie(rawAuthorityCookie);
+  if (!cookieUserId) {
+    return null;
+  }
+
+  return resolveSessionUserById(cookieUserId);
+}
+
+export async function resolveServerUser(
+  request: NextRequest
+): Promise<ServerUserResult> {
+  const rawAuthorityCookie = request.cookies.get(AUTHORITY_COOKIE_NAME)?.value;
+  const sessionUser = await resolveSessionUserFromCookie(rawAuthorityCookie);
+  if (!sessionUser) {
     return {
       ok: false,
-      response: unauthorized("Unauthorized: authenticated user is invalid or inactive."),
+      response: unauthorized("Unauthorized: missing or invalid authenticated session."),
     };
   }
 
   return {
     ok: true,
-    data: {
-      id: user.id,
-      role: user.role,
-    },
+    data: sessionUser,
   };
 }
 

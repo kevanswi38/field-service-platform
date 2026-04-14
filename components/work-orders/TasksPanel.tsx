@@ -15,7 +15,6 @@ type TaskRecord = {
 type TaskForm = {
   title: string;
   status: string;
-  assignedToId: string;
   sortOrder: string;
   dueAt: string;
   resultNotes: string;
@@ -24,7 +23,6 @@ type TaskForm = {
 const emptyTaskForm: TaskForm = {
   title: "",
   status: "todo",
-  assignedToId: "",
   sortOrder: "0",
   dueAt: "",
   resultNotes: "",
@@ -54,7 +52,6 @@ function toTaskForm(task: TaskRecord): TaskForm {
   return {
     title: task.title,
     status: task.status,
-    assignedToId: task.assignedToId ?? "",
     sortOrder: String(task.sortOrder),
     dueAt: toDateTimeLocal(task.dueAt),
     resultNotes: task.resultNotes ?? "",
@@ -66,7 +63,6 @@ function taskPayload(form: TaskForm) {
   return {
     title: form.title.trim(),
     status: form.status,
-    assignedToId: form.assignedToId.trim() || null,
     sortOrder: Number.isInteger(sortOrder) ? sortOrder : 0,
     dueAt: toIsoDateTime(form.dueAt),
     resultNotes: form.resultNotes.trim() || null,
@@ -236,7 +232,6 @@ export default function TasksPanel({ workOrderId }: TasksPanelProps) {
         <form onSubmit={createTask} className="mt-4 grid gap-3 md:grid-cols-2">
           <input value={createForm.title} onChange={(e) => setCreateForm((c) => ({ ...c, title: e.target.value }))} placeholder="Task title" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
           <select value={createForm.status} onChange={(e) => setCreateForm((c) => ({ ...c, status: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
-          <input value={createForm.assignedToId} onChange={(e) => setCreateForm((c) => ({ ...c, assignedToId: e.target.value }))} placeholder="Assigned user ID" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
           <input value={createForm.sortOrder} onChange={(e) => setCreateForm((c) => ({ ...c, sortOrder: e.target.value }))} placeholder="Sort order" inputMode="numeric" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
           <input type="datetime-local" value={createForm.dueAt} onChange={(e) => setCreateForm((c) => ({ ...c, dueAt: e.target.value }))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
           <textarea value={createForm.resultNotes} onChange={(e) => setCreateForm((c) => ({ ...c, resultNotes: e.target.value }))} rows={2} placeholder="Result notes" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
@@ -258,11 +253,10 @@ export default function TasksPanel({ workOrderId }: TasksPanelProps) {
 
       <section className="rounded-[30px] border border-white/60 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
         <h3 className="text-xl font-semibold tracking-tight text-slate-950">Task Editor</h3>
-        {!selectedTask ? <p className="mt-3 text-sm text-slate-500">Select a task to update title, status, assignment, ordering, due date, and result notes.</p> : (
+        {!selectedTask ? <p className="mt-3 text-sm text-slate-500">Select a task to update title, status, ordering, due date, and result notes.</p> : (
           <form onSubmit={saveTask} className="mt-4 space-y-3">
             <input value={editForm.title} onChange={(e) => setEditForm((c) => ({ ...c, title: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
             <select value={editForm.status} onChange={(e) => setEditForm((c) => ({ ...c, status: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">{statuses.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}</select>
-            <input value={editForm.assignedToId} onChange={(e) => setEditForm((c) => ({ ...c, assignedToId: e.target.value }))} placeholder="Assigned user ID" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
             <input value={editForm.sortOrder} onChange={(e) => setEditForm((c) => ({ ...c, sortOrder: e.target.value }))} inputMode="numeric" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
             <input type="datetime-local" value={editForm.dueAt} onChange={(e) => setEditForm((c) => ({ ...c, dueAt: e.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
             <textarea value={editForm.resultNotes} onChange={(e) => setEditForm((c) => ({ ...c, resultNotes: e.target.value }))} rows={3} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />

@@ -148,6 +148,7 @@ enum NoteType {
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
+  passwordHash String?
   employeeCode String?      @unique
   firstName    String?
   lastName     String?

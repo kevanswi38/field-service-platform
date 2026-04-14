@@ -44,7 +44,6 @@ const taskAllowedKeys = new Set([
   "dueAt",
   "completedAt",
   "resultNotes",
-  "assignedToId",
   "assetId",
   "templateId",
 ]);

@@ -22,7 +22,6 @@ export type NoteCreateInput = {
 const noteAllowedKeys = new Set([
   "entityType",
   "entityId",
-  "createdById",
   "noteType",
   "content",
   "isInternal",

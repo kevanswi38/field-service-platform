@@ -34,7 +34,6 @@ const attachmentAllowedKeys = new Set([
   "fileType",
   "mimeType",
   "fileSizeBytes",
-  "uploadedById",
   "caption",
   "category",
   "sortOrder",

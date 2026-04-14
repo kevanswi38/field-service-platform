@@ -30,7 +30,6 @@ function formatDateTime(value: string) {
 
 export default function NotesPanel({ entityType, entityId, title }: NotesPanelProps) {
   const [notes, setNotes] = useState<NoteRecord[]>([]);
-  const [createdById, setCreatedById] = useState("");
   const [noteType, setNoteType] = useState("general");
   const [content, setContent] = useState("");
   const [isInternal, setIsInternal] = useState(true);
@@ -69,8 +68,8 @@ export default function NotesPanel({ entityType, entityId, title }: NotesPanelPr
   async function addNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!createdById.trim() || !content.trim()) {
-      setErrorMessage("Note requires creator user ID and content.");
+    if (!content.trim()) {
+      setErrorMessage("Note content is required.");
       return;
     }
 
@@ -81,7 +80,7 @@ export default function NotesPanel({ entityType, entityId, title }: NotesPanelPr
     const response = await fetch("/api/notes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entityType, entityId, createdById: createdById.trim(), noteType, content: content.trim(), isInternal }),
+      body: JSON.stringify({ entityType, entityId, noteType, content: content.trim(), isInternal }),
     });
 
     const payload = (await response.json().catch(() => null)) as
@@ -107,7 +106,6 @@ export default function NotesPanel({ entityType, entityId, title }: NotesPanelPr
       {successMessage ? <p className="mt-3 text-sm text-emerald-700">{successMessage}</p> : null}
 
       <form onSubmit={addNote} className="mt-4 space-y-3">
-        <input value={createdById} onChange={(e) => setCreatedById(e.target.value)} placeholder="Creator user ID" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
         <select value={noteType} onChange={(e) => setNoteType(e.target.value)} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">{noteTypeOptions.map((entry) => <option key={entry} value={entry}>{statusLabel(entry)}</option>)}</select>
         <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={3} placeholder="Note content" className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
         <label className="inline-flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={isInternal} onChange={(e) => setIsInternal(e.target.checked)} />Internal note</label>

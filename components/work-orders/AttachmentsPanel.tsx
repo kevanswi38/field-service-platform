@@ -24,7 +24,6 @@ export default function AttachmentsPanel({ entityType, entityId, title }: Attach
     fileType: "",
     mimeType: "",
     fileSizeBytes: "",
-    uploadedById: "",
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -87,7 +86,6 @@ export default function AttachmentsPanel({ entityType, entityId, title }: Attach
         fileType: draft.fileType.trim(),
         mimeType: draft.mimeType.trim(),
         fileSizeBytes,
-        uploadedById: draft.uploadedById.trim() || null,
       }),
     });
 
@@ -102,7 +100,7 @@ export default function AttachmentsPanel({ entityType, entityId, title }: Attach
     }
 
     setSuccessMessage("Attachment metadata added.");
-    setDraft({ fileName: "", fileUrl: "", fileType: "", mimeType: "", fileSizeBytes: "", uploadedById: "" });
+    setDraft({ fileName: "", fileUrl: "", fileType: "", mimeType: "", fileSizeBytes: "" });
     await load();
     setIsSaving(false);
   }
@@ -119,7 +117,6 @@ export default function AttachmentsPanel({ entityType, entityId, title }: Attach
         <input value={draft.fileType} onChange={(e) => setDraft((c) => ({ ...c, fileType: e.target.value }))} placeholder="File type" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
         <input value={draft.mimeType} onChange={(e) => setDraft((c) => ({ ...c, mimeType: e.target.value }))} placeholder="MIME type" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
         <input value={draft.fileSizeBytes} onChange={(e) => setDraft((c) => ({ ...c, fileSizeBytes: e.target.value }))} placeholder="File size bytes" inputMode="numeric" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
-        <input value={draft.uploadedById} onChange={(e) => setDraft((c) => ({ ...c, uploadedById: e.target.value }))} placeholder="Uploader user ID" className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" />
         <div className="md:col-span-2"><button type="submit" disabled={isSaving || isLoading} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{isSaving ? "Saving..." : "Add attachment metadata"}</button></div>
       </form>
 

@@ -1,20 +1,48 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, ReactNode } from "react";
 import { PlatformRole } from "@/types/roles";
 
 type RoleContextType = {
+  user: {
+    id: string;
+    email: string;
+    role: PlatformRole;
+    firstName: string | null;
+    lastName: string | null;
+  };
   role: PlatformRole;
-  setRole: (role: PlatformRole) => void;
+  signOut: () => Promise<void>;
 };
 
 const RoleContext = createContext<RoleContextType | null>(null);
 
-export function RoleProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<PlatformRole>("admin");
+type RoleProviderProps = {
+  children: ReactNode;
+  initialUser: {
+    id: string;
+    email: string;
+    role: PlatformRole;
+    firstName: string | null;
+    lastName: string | null;
+  };
+};
+
+export function RoleProvider({ children, initialUser }: RoleProviderProps) {
+  const user = initialUser;
+
+  async function signOut() {
+    try {
+      await fetch("/api/auth/session", {
+        method: "DELETE",
+      });
+    } finally {
+      window.location.href = "/";
+    }
+  }
 
   return (
-    <RoleContext.Provider value={{ role, setRole }}>
+    <RoleContext.Provider value={{ user, role: user.role, signOut }}>
       {children}
     </RoleContext.Provider>
   );

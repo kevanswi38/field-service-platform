@@ -132,7 +132,6 @@ const checklistItemAllowedKeys = new Set([
   "isRequired",
   "completedAt",
   "resultNotes",
-  "assignedToId",
 ]);
 
 export function parseChecklistItemCreatePayload(

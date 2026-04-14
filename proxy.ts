@@ -1,42 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  AUTHORITY_BOOTSTRAP_USER_ENV_KEY,
-  AUTHORITY_COOKIE_MAX_AGE_SECONDS,
   AUTHORITY_COOKIE_NAME,
-  signAuthorityCookie,
   verifyAuthorityCookie,
 } from "@/lib/authority-bridge";
 
-// Temporary authority bootstrap until full authentication/session infrastructure is
-// integrated. The app issues and verifies its own signed authority cookie.
+const protectedPlatformPathPattern =
+  /^\/(dashboard|leads|customers|sites|work-orders|scheduling|walkthroughs|estimates)(\/|$)/;
+
+const authApiPathPattern = /^\/api\/auth\/session(\/|$)/;
+
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
   const existingCookie = request.cookies.get(AUTHORITY_COOKIE_NAME)?.value;
   const verifiedUserId = await verifyAuthorityCookie(existingCookie);
-  if (verifiedUserId) {
+
+  if (pathname === "/" && verifiedUserId) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  if (protectedPlatformPathPattern.test(pathname) && !verifiedUserId) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (pathname.startsWith("/api/") && authApiPathPattern.test(pathname)) {
     return NextResponse.next();
   }
 
-  const bootstrapUserId = process.env[AUTHORITY_BOOTSTRAP_USER_ENV_KEY]?.trim();
-  if (!bootstrapUserId) {
-    return NextResponse.next();
-  }
-
-  const signedAuthorityCookie = await signAuthorityCookie(bootstrapUserId);
-  if (!signedAuthorityCookie) {
-    return NextResponse.next();
-  }
-
-  const response = NextResponse.next();
-  response.cookies.set({
-    name: AUTHORITY_COOKIE_NAME,
-    value: signedAuthorityCookie,
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: AUTHORITY_COOKIE_MAX_AGE_SECONDS,
-  });
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

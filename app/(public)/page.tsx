@@ -1,3 +1,5 @@
+import SessionEntryPanel from "@/components/auth/SessionEntryPanel";
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -37,6 +39,8 @@ export default function HomePage() {
               Operations
             </div>
           </div>
+
+          <SessionEntryPanel />
         </div>
       </div>
     </main>
