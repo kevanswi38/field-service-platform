@@ -8,15 +8,15 @@ type EstimateRecord = {
   title: string | null;
   status: string;
   total: string | null;
-  customer: {
-    id: string;
-    name: string;
-    customerNumber: string | null;
-  } | null;
   lead: {
     id: string;
     companyName: string | null;
     contactName: string | null;
+    customer: {
+      id: string;
+      name: string;
+      customerNumber: string | null;
+    } | null;
   } | null;
   walkthrough: {
     id: string;
@@ -149,7 +149,7 @@ export default function EstimatesPage() {
                   Total: {estimate.total ?? "-"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Customer: {estimate.customer?.name ?? "Unlinked"}
+                  Customer: {estimate.lead?.customer?.name ?? "Unlinked"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
                   Lead:{" "}

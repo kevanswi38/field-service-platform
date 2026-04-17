@@ -191,15 +191,17 @@ model Lead {
   nextActionAt      DateTime?
   assignedToId      String?
   customerId        String?
+  convertedWorkOrderId String? @unique
   convertedAt       DateTime?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
-  assignedTo   User?         @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
-  customer     Customer?     @relation(fields: [customerId], references: [id])
-  walkthroughs Walkthrough[]
-  estimates    Estimate[]
-  activityLogs ActivityLog[]
+  assignedTo         User?         @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
+  customer           Customer?     @relation(fields: [customerId], references: [id])
+  convertedWorkOrder WorkOrder?    @relation("LeadConvertedWorkOrder", fields: [convertedWorkOrderId], references: [id])
+  walkthroughs       Walkthrough[]
+  estimates          Estimate[]
+  activityLogs       ActivityLog[]
 
   @@index([status, createdAt])
   @@index([assignedToId])
@@ -225,7 +227,6 @@ model Customer {
   contacts     Contact[]
   sites        Site[]
   walkthroughs Walkthrough[]
-  estimates    Estimate[]
   workOrders   WorkOrder[]
   contracts    Contract[]
   invoices     Invoice[]
@@ -323,8 +324,7 @@ model Walkthrough {
 
 model Estimate {
   id                     String         @id @default(cuid())
-  leadId                 String?
-  customerId             String?
+  leadId                 String
   walkthroughId          String?
   estimateNumber         String?        @unique
   externalReference      String?
@@ -343,21 +343,19 @@ model Estimate {
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
 
-  lead         Lead?         @relation(fields: [leadId], references: [id])
-  customer     Customer?     @relation(fields: [customerId], references: [id])
+  lead         Lead          @relation(fields: [leadId], references: [id])
   walkthrough  Walkthrough?  @relation(fields: [walkthroughId], references: [id])
   workOrders   WorkOrder[]
   activityLogs ActivityLog[]
 
   @@index([status, createdAt])
-  @@index([customerId])
 }
 
 model WorkOrder {
   id                 String          @id @default(cuid())
   customerId         String
   siteId             String
-  estimateId         String?
+  estimateId         String          @unique
   assignedToId       String?
   workOrderNumber    String?         @unique
   externalReference  String?
@@ -381,8 +379,9 @@ model WorkOrder {
 
   customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  estimate       Estimate?       @relation(fields: [estimateId], references: [id])
+  estimate       Estimate        @relation(fields: [estimateId], references: [id])
   assignedTo     User?           @relation("WorkOrderAssignedTo", fields: [assignedToId], references: [id])
+  convertedFromLead Lead?        @relation("LeadConvertedWorkOrder")
   scheduleEvents ScheduleEvent[]
   invoices       Invoice[]
   activityLogs   ActivityLog[]
