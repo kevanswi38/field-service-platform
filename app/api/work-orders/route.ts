@@ -2,7 +2,6 @@ import { WorkOrderStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
-  canAccessAssignedRecord,
   isAdmin,
   resolveServerUser,
   readForbiddenResponse,
@@ -70,6 +69,14 @@ export async function GET(request: NextRequest) {
           siteCode: true,
           city: true,
           state: true,
+        },
+      },
+      estimate: {
+        select: {
+          id: true,
+          estimateNumber: true,
+          title: true,
+          status: true,
         },
       },
       assignedTo: {
