@@ -96,8 +96,41 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return writeForbiddenResponse();
   }
 
+  const nextStatus = parsed.data.status ?? existingChecklist.status;
+  const statusExplicitlyChanged =
+    typeof parsed.data.status !== "undefined" &&
+    parsed.data.status !== existingChecklist.status;
+
+  let normalizedCompletedAt =
+    typeof parsed.data.completedAt === "undefined"
+      ? existingChecklist.completedAt
+      : parsed.data.completedAt;
+
+  if (
+    statusExplicitlyChanged &&
+    nextStatus !== ChecklistStatus.completed &&
+    typeof parsed.data.completedAt === "undefined"
+  ) {
+    normalizedCompletedAt = null;
+  }
+
+  if (nextStatus !== ChecklistStatus.completed && normalizedCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when checklist status is "completed".',
+      409
+    );
+  }
+
+  if (nextStatus === ChecklistStatus.completed && normalizedCompletedAt === null) {
+    normalizedCompletedAt = new Date();
+  }
+
+  const normalizedCompletedAtChanged =
+    (existingChecklist.completedAt?.getTime() ?? null) !==
+    (normalizedCompletedAt?.getTime() ?? null);
+
   const changedKeys = checklistChangedKeys(existingChecklist, parsed.data);
-  if (changedKeys.length === 0) {
+  if (changedKeys.length === 0 && !normalizedCompletedAtChanged) {
     return jsonError("No changes detected for this checklist.", 400);
   }
 
@@ -127,11 +160,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             updateData.templateId = parsed.data.templateId ?? null;
             break;
           case "completedAt":
-            updateData.completedAt = parsed.data.completedAt ?? null;
+            updateData.completedAt = normalizedCompletedAt;
             break;
           default:
             break;
         }
+      }
+
+      if (normalizedCompletedAtChanged && !changedKeys.includes("completedAt")) {
+        updateData.completedAt = normalizedCompletedAt;
       }
 
       const checklist = await tx.checklist.update({
@@ -142,10 +179,37 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       const target = checklistActivityTarget(checklist);
       if (target) {
-        if (
-          changedKeys.includes("status") &&
+        const statusChanged = existingChecklist.status !== checklist.status;
+        const movedToCompleted =
+          statusChanged &&
           existingChecklist.status !== ChecklistStatus.completed &&
-          checklist.status === ChecklistStatus.completed
+          checklist.status === ChecklistStatus.completed;
+
+        const completionTimestampChanged =
+          (existingChecklist.completedAt?.getTime() ?? null) !==
+          (checklist.completedAt?.getTime() ?? null);
+        const nonStatusChangedKeys = changedKeys.filter((key) => key !== "status");
+        if (completionTimestampChanged && !nonStatusChangedKeys.includes("completedAt")) {
+          nonStatusChangedKeys.push("completedAt");
+        }
+
+        if (statusChanged) {
+          await logActivity({
+            client: tx,
+            actorUserId: serverUser.id,
+            ...target,
+            action: "checklist.status_changed",
+            message: `Checklist status changed from ${existingChecklist.status} to ${checklist.status}`,
+            metadataJson: {
+              checklistId: checklist.id,
+              from: existingChecklist.status,
+              to: checklist.status,
+            },
+          });
+        }
+
+        if (
+          movedToCompleted
         ) {
           await logActivity({
             client: tx,
@@ -157,21 +221,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
               checklistId: checklist.id,
               from: existingChecklist.status,
               to: checklist.status,
+              completedAt: checklist.completedAt?.toISOString() ?? null,
             },
           });
         }
 
-        await logActivity({
-          client: tx,
-          actorUserId: serverUser.id,
-          ...target,
-          action: "checklist.updated",
-          message: `Checklist updated: ${checklist.title}`,
-          metadataJson: {
-            checklistId: checklist.id,
-            changedKeys,
-          },
-        });
+        if (nonStatusChangedKeys.length > 0) {
+          await logActivity({
+            client: tx,
+            actorUserId: serverUser.id,
+            ...target,
+            action: "checklist.updated",
+            message: `Checklist updated: ${checklist.title}`,
+            metadataJson: {
+              checklistId: checklist.id,
+              changedKeys: nonStatusChangedKeys,
+            },
+          });
+        }
       }
 
       return checklist;

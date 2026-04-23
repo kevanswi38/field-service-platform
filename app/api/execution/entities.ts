@@ -2,6 +2,7 @@ import {
   ActivityEntityType,
   AttachmentEntityType,
   NoteEntityType,
+  PlatformRole,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
@@ -148,6 +149,41 @@ export async function ensureOptionalUserExists(
   if (!found) {
     return { ok: false, message: `Referenced "${fieldName}" user was not found.` };
   }
+  return { ok: true, data: true };
+}
+
+const assignableWorkOrderRoles: PlatformRole[] = [
+  PlatformRole.admin,
+  PlatformRole.operations_manager,
+  PlatformRole.support,
+  PlatformRole.technician,
+];
+
+export async function ensureOptionalAssignableUserExists(
+  client: ApiClient,
+  userId: string | null | undefined,
+  fieldName: string,
+  organizationId: string
+): Promise<ParseResult<true>> {
+  if (!userId) return { ok: true, data: true };
+
+  const found = await client.user.findFirst({
+    where: {
+      id: userId,
+      organizationId,
+      isActive: true,
+      role: { in: assignableWorkOrderRoles },
+    },
+    select: { id: true },
+  });
+
+  if (!found) {
+    return {
+      ok: false,
+      message: `Referenced "${fieldName}" user is not assignable in this organization.`,
+    };
+  }
+
   return { ok: true, data: true };
 }
 

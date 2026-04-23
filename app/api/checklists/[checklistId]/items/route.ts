@@ -105,6 +105,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
+  const nextIsCompleted = parsed.data.isCompleted ?? false;
+  const nextCompletedAt = parsed.data.completedAt ?? null;
+  if (!nextIsCompleted && nextCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when "isCompleted" is true.',
+      409
+    );
+  }
+
+  const resolvedCompletedAt =
+    nextIsCompleted ? nextCompletedAt ?? new Date() : null;
+
   try {
     const item = await prisma.$transaction(async (tx) => {
       const created = await tx.checklistItem.create({
@@ -113,10 +125,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
           checklistId,
           title: parsed.data.title,
           description: parsed.data.description ?? null,
-          isCompleted: parsed.data.isCompleted ?? false,
+          isCompleted: nextIsCompleted,
           sortOrder: parsed.data.sortOrder ?? 0,
           isRequired: parsed.data.isRequired ?? true,
-          completedAt: parsed.data.completedAt ?? null,
+          completedAt: resolvedCompletedAt,
           resultNotes: parsed.data.resultNotes ?? null,
           assignedToId: serverUser.id,
         },
@@ -137,6 +149,23 @@ export async function POST(request: NextRequest, context: RouteContext) {
             title: created.title,
           },
         });
+
+        if (created.isCompleted) {
+          await logActivity({
+            client: tx,
+            actorUserId: serverUser.id,
+            ...target,
+            action: "checklist.item_completion_changed",
+            message: `Checklist item completed in ${checklist.title}`,
+            metadataJson: {
+              checklistId: checklist.id,
+              checklistItemId: created.id,
+              from: false,
+              to: true,
+              completedAt: created.completedAt?.toISOString() ?? null,
+            },
+          });
+        }
       }
 
       return created;

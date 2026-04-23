@@ -99,6 +99,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
+  const nextStatus = parsed.data.status ?? ChecklistStatus.draft;
+  const nextCompletedAt = parsed.data.completedAt ?? null;
+  if (nextStatus !== ChecklistStatus.completed && nextCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when checklist status is "completed".',
+      409
+    );
+  }
+
+  const resolvedCompletedAt =
+    nextStatus === ChecklistStatus.completed ? nextCompletedAt ?? new Date() : null;
+
   try {
     const checklist = await prisma.$transaction(async (tx) => {
       const templateCheck = await ensureOptionalTemplateExists(
@@ -114,9 +126,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         workOrderId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        status: parsed.data.status ?? ChecklistStatus.draft,
+        status: nextStatus,
         templateId: parsed.data.templateId ?? null,
-        completedAt: parsed.data.completedAt ?? null,
+        completedAt: resolvedCompletedAt,
       };
 
       const created = await tx.checklist.create({
@@ -137,6 +149,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
         workOrderId,
       });
+
+      if (created.status === ChecklistStatus.completed) {
+        await logActivity({
+          client: tx,
+          actorUserId: serverUser.id,
+          entityType: ActivityEntityType.work_order,
+          entityId: workOrderId,
+          action: "checklist.completed",
+          message: `Checklist completed: ${created.title}`,
+          metadataJson: {
+            checklistId: created.id,
+            completedAt: created.completedAt?.toISOString() ?? null,
+          },
+          workOrderId,
+        });
+      }
 
       return created;
     });

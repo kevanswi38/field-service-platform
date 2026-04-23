@@ -102,8 +102,42 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return writeForbiddenResponse();
   }
 
+  const nextIsCompleted =
+    typeof parsed.data.isCompleted === "undefined"
+      ? existing.isCompleted
+      : parsed.data.isCompleted;
+
+  let normalizedCompletedAt =
+    typeof parsed.data.completedAt === "undefined"
+      ? existing.completedAt
+      : parsed.data.completedAt;
+
+  if (
+    typeof parsed.data.isCompleted !== "undefined" &&
+    parsed.data.isCompleted !== existing.isCompleted &&
+    !nextIsCompleted &&
+    typeof parsed.data.completedAt === "undefined"
+  ) {
+    normalizedCompletedAt = null;
+  }
+
+  if (!nextIsCompleted && normalizedCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when "isCompleted" is true.',
+      409
+    );
+  }
+
+  if (nextIsCompleted && normalizedCompletedAt === null) {
+    normalizedCompletedAt = new Date();
+  }
+
+  const normalizedCompletedAtChanged =
+    (existing.completedAt?.getTime() ?? null) !==
+    (normalizedCompletedAt?.getTime() ?? null);
+
   const changedKeys = checklistItemChangedKeys(existing, parsed.data);
-  if (changedKeys.length === 0) {
+  if (changedKeys.length === 0 && !normalizedCompletedAtChanged) {
     return jsonError("No changes detected for this checklist item.", 400);
   }
 
@@ -128,7 +162,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             updateData.isRequired = parsed.data.isRequired;
             break;
           case "completedAt":
-            updateData.completedAt = parsed.data.completedAt ?? null;
+            updateData.completedAt = normalizedCompletedAt;
             break;
           case "resultNotes":
             updateData.resultNotes = parsed.data.resultNotes ?? null;
@@ -136,6 +170,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           default:
             break;
         }
+      }
+
+      if (normalizedCompletedAtChanged && !changedKeys.includes("completedAt")) {
+        updateData.completedAt = normalizedCompletedAt;
       }
 
       const updated = await tx.checklistItem.update({
@@ -152,18 +190,48 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       if (checklist) {
         const target = checklistActivityTarget(checklist);
         if (target) {
-          await logActivity({
-            client: tx,
-            actorUserId: serverUser.id,
-            ...target,
-            action: "checklist.item_updated",
-            message: `Checklist item updated in ${checklist.title}`,
-            metadataJson: {
-              checklistId: checklist.id,
-              checklistItemId: updated.id,
-              changedKeys,
-            },
-          });
+          const completionChanged = existing.isCompleted !== updated.isCompleted;
+          const nonCompletionChangedKeys = changedKeys.filter(
+            (key) => key !== "isCompleted"
+          );
+          if (
+            normalizedCompletedAtChanged &&
+            !nonCompletionChangedKeys.includes("completedAt")
+          ) {
+            nonCompletionChangedKeys.push("completedAt");
+          }
+
+          if (completionChanged) {
+            await logActivity({
+              client: tx,
+              actorUserId: serverUser.id,
+              ...target,
+              action: "checklist.item_completion_changed",
+              message: `Checklist item completion updated in ${checklist.title}`,
+              metadataJson: {
+                checklistId: checklist.id,
+                checklistItemId: updated.id,
+                from: existing.isCompleted,
+                to: updated.isCompleted,
+                completedAt: updated.completedAt?.toISOString() ?? null,
+              },
+            });
+          }
+
+          if (nonCompletionChangedKeys.length > 0) {
+            await logActivity({
+              client: tx,
+              actorUserId: serverUser.id,
+              ...target,
+              action: "checklist.item_updated",
+              message: `Checklist item updated in ${checklist.title}`,
+              metadataJson: {
+                checklistId: checklist.id,
+                checklistItemId: updated.id,
+                changedKeys: nonCompletionChangedKeys,
+              },
+            });
+          }
         }
       }
 

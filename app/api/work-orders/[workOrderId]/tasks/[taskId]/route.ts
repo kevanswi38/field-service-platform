@@ -101,8 +101,41 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError("Task not found.", 404);
   }
 
+  const nextStatus = parsed.data.status ?? existingTask.status;
+  const statusExplicitlyChanged =
+    typeof parsed.data.status !== "undefined" &&
+    parsed.data.status !== existingTask.status;
+
+  let normalizedCompletedAt =
+    typeof parsed.data.completedAt === "undefined"
+      ? existingTask.completedAt
+      : parsed.data.completedAt;
+
+  if (
+    statusExplicitlyChanged &&
+    nextStatus !== TaskStatus.completed &&
+    typeof parsed.data.completedAt === "undefined"
+  ) {
+    normalizedCompletedAt = null;
+  }
+
+  if (nextStatus !== TaskStatus.completed && normalizedCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when task status is "completed".',
+      409
+    );
+  }
+
+  if (nextStatus === TaskStatus.completed && normalizedCompletedAt === null) {
+    normalizedCompletedAt = new Date();
+  }
+
+  const normalizedCompletedAtChanged =
+    (existingTask.completedAt?.getTime() ?? null) !==
+    (normalizedCompletedAt?.getTime() ?? null);
+
   const changedKeys = taskChangedKeys(existingTask, parsed.data);
-  if (changedKeys.length === 0) {
+  if (changedKeys.length === 0 && !normalizedCompletedAtChanged) {
     return jsonError("No changes detected for this task.", 400);
   }
 
@@ -149,7 +182,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             updateInput.dueAt = parsed.data.dueAt ?? null;
             break;
           case "completedAt":
-            updateInput.completedAt = parsed.data.completedAt ?? null;
+            updateInput.completedAt = normalizedCompletedAt;
             break;
           case "resultNotes":
             updateInput.resultNotes = parsed.data.resultNotes ?? null;
@@ -165,17 +198,46 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         }
       }
 
+      if (normalizedCompletedAtChanged && !changedKeys.includes("completedAt")) {
+        updateInput.completedAt = normalizedCompletedAt;
+      }
+
       const updatedTask = await tx.task.update({
         where: { id: taskId },
         data: updateInput,
         select: taskSelect,
       });
 
-      const statusChanged = changedKeys.includes("status");
+      const statusChanged = existingTask.status !== updatedTask.status;
+      const completionTimestampChanged =
+        (existingTask.completedAt?.getTime() ?? null) !==
+        (updatedTask.completedAt?.getTime() ?? null);
       const movedToCompleted =
         statusChanged &&
         existingTask.status !== TaskStatus.completed &&
         updatedTask.status === TaskStatus.completed;
+
+      const nonStatusChangedKeys = changedKeys.filter((key) => key !== "status");
+      if (completionTimestampChanged && !nonStatusChangedKeys.includes("completedAt")) {
+        nonStatusChangedKeys.push("completedAt");
+      }
+
+      if (statusChanged) {
+        await logActivity({
+          client: tx,
+          actorUserId: serverUser.id,
+          entityType: ActivityEntityType.work_order,
+          entityId: workOrderId,
+          action: "task.status_changed",
+          message: `Task status changed from ${existingTask.status} to ${updatedTask.status}`,
+          metadataJson: {
+            taskId: updatedTask.id,
+            from: existingTask.status,
+            to: updatedTask.status,
+          },
+          workOrderId,
+        });
+      }
 
       if (movedToCompleted) {
         await logActivity({
@@ -189,24 +251,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             taskId: updatedTask.id,
             from: existingTask.status,
             to: updatedTask.status,
+            completedAt: updatedTask.completedAt?.toISOString() ?? null,
           },
           workOrderId,
         });
       }
 
-      await logActivity({
-        client: tx,
-        actorUserId: serverUser.id,
-        entityType: ActivityEntityType.work_order,
-        entityId: workOrderId,
-        action: "task.updated",
-        message: `Task updated: ${updatedTask.title}`,
-        metadataJson: {
-          taskId: updatedTask.id,
-          changedKeys,
-        },
-        workOrderId,
-      });
+      if (nonStatusChangedKeys.length > 0) {
+        await logActivity({
+          client: tx,
+          actorUserId: serverUser.id,
+          entityType: ActivityEntityType.work_order,
+          entityId: workOrderId,
+          action: "task.updated",
+          message: `Task updated: ${updatedTask.title}`,
+          metadataJson: {
+            taskId: updatedTask.id,
+            changedKeys: nonStatusChangedKeys,
+          },
+          workOrderId,
+        });
+      }
 
       return updatedTask;
     });

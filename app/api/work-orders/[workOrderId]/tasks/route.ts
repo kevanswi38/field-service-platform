@@ -107,6 +107,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
+  const nextStatus = parsed.data.status ?? TaskStatus.todo;
+  const nextCompletedAt = parsed.data.completedAt ?? null;
+  if (nextStatus !== TaskStatus.completed && nextCompletedAt !== null) {
+    return jsonError(
+      'Field "completedAt" can only be set when task status is "completed".',
+      409
+    );
+  }
+
+  const resolvedCompletedAt =
+    nextStatus === TaskStatus.completed ? nextCompletedAt ?? new Date() : null;
+
   try {
     const task = await prisma.$transaction(async (tx) => {
       const assetCheck = await ensureOptionalAssetExists(
@@ -131,13 +143,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
         workOrderId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        status: parsed.data.status ?? TaskStatus.todo,
+        status: nextStatus,
         priority: parsed.data.priority ?? TaskPriority.normal,
         taskType: parsed.data.taskType ?? "general",
         sortOrder: parsed.data.sortOrder ?? 0,
         isRequired: parsed.data.isRequired ?? true,
         dueAt: parsed.data.dueAt ?? null,
-        completedAt: parsed.data.completedAt ?? null,
+        completedAt: resolvedCompletedAt,
         resultNotes: parsed.data.resultNotes ?? null,
         assignedToId: serverUser.id,
         assetId: parsed.data.assetId ?? null,
@@ -163,6 +175,22 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
         workOrderId,
       });
+
+      if (createdTask.status === TaskStatus.completed) {
+        await logActivity({
+          client: tx,
+          actorUserId: serverUser.id,
+          entityType: ActivityEntityType.work_order,
+          entityId: workOrderId,
+          action: "task.completed",
+          message: `Task completed: ${createdTask.title}`,
+          metadataJson: {
+            taskId: createdTask.id,
+            completedAt: createdTask.completedAt?.toISOString() ?? null,
+          },
+          workOrderId,
+        });
+      }
 
       return createdTask;
     });

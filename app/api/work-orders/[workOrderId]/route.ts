@@ -1,4 +1,9 @@
-import { ActivityEntityType, Prisma, WorkOrderStatus } from "@prisma/client";
+import {
+  ActivityEntityType,
+  Prisma,
+  TaskStatus,
+  WorkOrderStatus,
+} from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +14,7 @@ import {
   resolveServerUser,
   writeForbiddenResponse,
 } from "@/lib/serverUser";
-import { ensureOptionalUserExists } from "@/app/api/execution/entities";
+import { ensureOptionalAssignableUserExists } from "@/app/api/execution/entities";
 import {
   ParseResult,
   ensureAllowedKeys,
@@ -248,6 +253,43 @@ async function loadAssignableUsers(organizationId: string) {
   });
 }
 
+async function validateWorkOrderCompletionReadiness(input: {
+  workOrderId: string;
+  organizationId: string;
+}): Promise<ParseResult<true>> {
+  const [remainingRequiredTasks, remainingRequiredChecklistItems] =
+    await Promise.all([
+      prisma.task.count({
+        where: {
+          organizationId: input.organizationId,
+          workOrderId: input.workOrderId,
+          isRequired: true,
+          status: { notIn: [TaskStatus.completed, TaskStatus.canceled] },
+        },
+      }),
+      prisma.checklistItem.count({
+        where: {
+          organizationId: input.organizationId,
+          isRequired: true,
+          isCompleted: false,
+          checklist: {
+            workOrderId: input.workOrderId,
+          },
+        },
+      }),
+    ]);
+
+  if (remainingRequiredTasks > 0 || remainingRequiredChecklistItems > 0) {
+    return {
+      ok: false,
+      message:
+        "Work order cannot be completed until all required tasks and checklist items are complete.",
+    };
+  }
+
+  return { ok: true, data: true };
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   const { workOrderId } = await context.params;
   const auth = await resolveServerUser(request);
@@ -340,6 +382,21 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       ? existing.scheduledEnd
       : parsed.data.scheduledEnd;
 
+  const statusChanged =
+    typeof parsed.data.status !== "undefined" && parsed.data.status !== existing.status;
+  const assignmentChanged =
+    typeof parsed.data.assignedToId !== "undefined" &&
+    parsed.data.assignedToId !== existing.assignedToId;
+  const scheduledStartChanged = dateChanged(
+    existing.scheduledStart,
+    parsed.data.scheduledStart
+  );
+  const scheduledEndChanged = dateChanged(
+    existing.scheduledEnd,
+    parsed.data.scheduledEnd
+  );
+  const scheduleChanged = scheduledStartChanged || scheduledEndChanged;
+
   if (
     typeof parsed.data.status !== "undefined" &&
     parsed.data.status !== existing.status &&
@@ -352,9 +409,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   if (
-    typeof parsed.data.status !== "undefined" &&
-    parsed.data.status === WorkOrderStatus.scheduled &&
-    !nextScheduledStart
+    nextStatus === WorkOrderStatus.scheduled &&
+    !nextScheduledStart &&
+    (statusChanged || scheduleChanged)
   ) {
     return jsonError(
       'Status "scheduled" requires "scheduledStart" to be set.',
@@ -381,34 +438,29 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   if (typeof parsed.data.assignedToId !== "undefined") {
-    const assignment = await ensureOptionalUserExists(
+    const assignment = await ensureOptionalAssignableUserExists(
       prisma,
       parsed.data.assignedToId,
       "assignedToId",
       serverUser.organizationId
     );
     if (!assignment.ok) {
-      return jsonError(assignment.message, 404);
+      return jsonError(assignment.message, 409);
     }
   }
 
-  const statusChanged =
-    typeof parsed.data.status !== "undefined" && parsed.data.status !== existing.status;
-  const assignmentChanged =
-    typeof parsed.data.assignedToId !== "undefined" &&
-    parsed.data.assignedToId !== existing.assignedToId;
-  const scheduledStartChanged = dateChanged(
-    existing.scheduledStart,
-    parsed.data.scheduledStart
-  );
-  const scheduledEndChanged = dateChanged(
-    existing.scheduledEnd,
-    parsed.data.scheduledEnd
-  );
-  const scheduleChanged = scheduledStartChanged || scheduledEndChanged;
-
   if (!statusChanged && !assignmentChanged && !scheduleChanged) {
     return jsonError("No changes detected for this work order.", 400);
+  }
+
+  if (statusChanged && parsed.data.status === WorkOrderStatus.completed) {
+    const readiness = await validateWorkOrderCompletionReadiness({
+      workOrderId,
+      organizationId: serverUser.organizationId,
+    });
+    if (!readiness.ok) {
+      return jsonError(readiness.message, 409);
+    }
   }
 
   const updateData: Prisma.WorkOrderUncheckedUpdateInput = {};
@@ -461,6 +513,45 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
           siteId: workOrder.siteId,
           estimateId: workOrder.estimateId,
         });
+
+        if (workOrder.status === WorkOrderStatus.in_progress) {
+          await logActivity({
+            client: tx,
+            actorUserId: serverUser.id,
+            entityType: ActivityEntityType.work_order,
+            entityId: workOrder.id,
+            action: "work_order.execution_started",
+            message: "Work order execution started.",
+            metadataJson: {
+              from: existing.status,
+              to: workOrder.status,
+            },
+            workOrderId: workOrder.id,
+            customerId: workOrder.customerId,
+            siteId: workOrder.siteId,
+            estimateId: workOrder.estimateId,
+          });
+        }
+
+        if (workOrder.status === WorkOrderStatus.completed) {
+          await logActivity({
+            client: tx,
+            actorUserId: serverUser.id,
+            entityType: ActivityEntityType.work_order,
+            entityId: workOrder.id,
+            action: "work_order.completed",
+            message: "Work order marked completed.",
+            metadataJson: {
+              from: existing.status,
+              to: workOrder.status,
+              completedAt: workOrder.completedAt?.toISOString() ?? null,
+            },
+            workOrderId: workOrder.id,
+            customerId: workOrder.customerId,
+            siteId: workOrder.siteId,
+            estimateId: workOrder.estimateId,
+          });
+        }
       }
 
       if (assignmentChanged) {
