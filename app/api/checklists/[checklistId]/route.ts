@@ -33,8 +33,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const checklist = await prisma.checklist.findUnique({
-    where: { id: checklistId },
+  const checklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
     select: checklistSelect,
   });
 
@@ -42,7 +42,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return jsonError("Checklist not found.", 404);
   }
 
-  const assignedToId = await resolveChecklistAssignedToId(prisma, checklistId);
+  const assignedToId = await resolveChecklistAssignedToId(
+    prisma,
+    checklistId,
+    serverUser.organizationId
+  );
   const allowSalesRead = Boolean(checklist.walkthroughId);
   if (
     !canReadAssignedRecord(serverUser, assignedToId, {
@@ -75,15 +79,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const existingChecklist = await prisma.checklist.findUnique({
-    where: { id: checklistId },
+  const existingChecklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
     select: checklistSelect,
   });
   if (!existingChecklist) {
     return jsonError("Checklist not found.", 404);
   }
 
-  const assignedToId = await resolveChecklistAssignedToId(prisma, checklistId);
+  const assignedToId = await resolveChecklistAssignedToId(
+    prisma,
+    checklistId,
+    serverUser.organizationId
+  );
   if (!canAccessAssignedRecord(serverUser, assignedToId)) {
     return writeForbiddenResponse();
   }

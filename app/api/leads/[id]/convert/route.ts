@@ -117,10 +117,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+  const lead = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: {
       id: true,
+      organizationId: true,
       status: true,
       assignedToId: true,
       customerId: true,
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const selectedEstimate = parsed.data.estimateId
     ? await prisma.estimate.findFirst({
         where: {
+          organizationId: serverUser.organizationId,
           id: parsed.data.estimateId,
           leadId: lead.id,
           status: EstimateStatus.approved,
@@ -166,6 +168,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
     : await prisma.estimate.findFirst({
         where: {
+          organizationId: serverUser.organizationId,
           leadId: lead.id,
           status: EstimateStatus.approved,
         },
@@ -190,7 +193,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const existingWorkOrder = await prisma.workOrder.findFirst({
-    where: { estimateId: selectedEstimate.id },
+    where: {
+      estimateId: selectedEstimate.id,
+      organizationId: serverUser.organizationId,
+    },
     select: { id: true, workOrderNumber: true, status: true },
   });
 
@@ -202,8 +208,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const conversion = await prisma.$transaction(async (tx) => {
       const customer =
         lead.customerId !== null
-          ? await tx.customer.findUnique({
-              where: { id: lead.customerId },
+          ? await tx.customer.findFirst({
+              where: {
+                id: lead.customerId,
+                organizationId: lead.organizationId,
+              },
               select: { id: true, name: true, customerNumber: true },
             })
           : null;
@@ -212,6 +221,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         customer ??
         (await tx.customer.create({
           data: {
+            organizationId: lead.organizationId,
             name:
               lead.companyName?.trim() ||
               lead.contactName?.trim() ||
@@ -230,8 +240,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       };
 
       if (parsed.data.siteId) {
-        const site = await tx.site.findUnique({
-          where: { id: parsed.data.siteId },
+        const site = await tx.site.findFirst({
+          where: {
+            id: parsed.data.siteId,
+            organizationId: lead.organizationId,
+          },
           select: { id: true, name: true, siteCode: true, customerId: true },
         });
         if (!site) {
@@ -247,7 +260,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         };
       } else {
         const firstSite = await tx.site.findFirst({
-          where: { customerId: resolvedCustomer.id },
+          where: {
+            organizationId: lead.organizationId,
+            customerId: resolvedCustomer.id,
+          },
           orderBy: { createdAt: "asc" },
           select: { id: true, name: true, siteCode: true },
         });
@@ -256,6 +272,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           firstSite ??
           (await tx.site.create({
             data: {
+              organizationId: lead.organizationId,
               customerId: resolvedCustomer.id,
               name:
                 lead.companyName?.trim() ||
@@ -268,6 +285,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       const workOrder = await tx.workOrder.create({
         data: {
+          organizationId: lead.organizationId,
           customerId: resolvedCustomer.id,
           siteId: resolvedSite.id,
           estimateId: selectedEstimate.id,

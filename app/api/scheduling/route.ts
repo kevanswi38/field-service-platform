@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   const where = {
+    organizationId: serverUser.organizationId,
     ...(statusFilter ? { status: statusFilter as ScheduleEventStatus } : {}),
     ...(!isAdmin(serverUser) && serverUser.role !== "sales"
       ? { assignedToId: serverUser.id }

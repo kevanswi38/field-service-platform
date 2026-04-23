@@ -230,9 +230,10 @@ function dateChanged(
   return current.getTime() !== next.getTime();
 }
 
-async function loadAssignableUsers() {
+async function loadAssignableUsers(organizationId: string) {
   return prisma.user.findMany({
     where: {
+      organizationId,
       isActive: true,
       role: { in: ["operations_manager", "support", "technician", "admin"] },
     },
@@ -255,8 +256,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: workOrderDetailSelect,
   });
 
@@ -268,7 +269,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return readForbiddenResponse();
   }
 
-  const assignableUsers = isAdmin(serverUser) ? await loadAssignableUsers() : [];
+  const assignableUsers = isAdmin(serverUser)
+    ? await loadAssignableUsers(serverUser.organizationId)
+    : [];
 
   return NextResponse.json({
     data: workOrder,
@@ -302,8 +305,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const existing = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const existing = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: workOrderDetailSelect,
   });
 
@@ -381,7 +384,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const assignment = await ensureOptionalUserExists(
       prisma,
       parsed.data.assignedToId,
-      "assignedToId"
+      "assignedToId",
+      serverUser.organizationId
     );
     if (!assignment.ok) {
       return jsonError(assignment.message, 404);
@@ -506,7 +510,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return workOrder;
     });
 
-    const assignableUsers = isAdmin(serverUser) ? await loadAssignableUsers() : [];
+    const assignableUsers = isAdmin(serverUser)
+      ? await loadAssignableUsers(serverUser.organizationId)
+      : [];
 
     return NextResponse.json({
       data: updated,

@@ -29,8 +29,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+  const lead = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: leadSelect,
   });
 
@@ -65,8 +65,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const existingLead = await prisma.lead.findUnique({
-    where: { id },
+  const existingLead = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: leadSelect,
   });
 

@@ -63,8 +63,11 @@ export async function GET(request: NextRequest) {
   }
 
   if (parsedQuery.data.leadId) {
-    const lead = await prisma.lead.findUnique({
-      where: { id: parsedQuery.data.leadId },
+    const lead = await prisma.lead.findFirst({
+      where: {
+        id: parsedQuery.data.leadId,
+        organizationId: serverUser.organizationId,
+      },
       select: { id: true, assignedToId: true },
     });
 
@@ -79,6 +82,7 @@ export async function GET(request: NextRequest) {
 
   const estimates = await prisma.estimate.findMany({
     where: {
+      organizationId: serverUser.organizationId,
       ...(parsedQuery.data.status ? { status: parsedQuery.data.status } : {}),
       ...(parsedQuery.data.leadId ? { leadId: parsedQuery.data.leadId } : {}),
       ...(!isAdmin(serverUser) && !isSales(serverUser)
@@ -135,10 +139,14 @@ export async function POST(request: NextRequest) {
     return jsonError('Field "leadId" is required for estimate ownership.', 400);
   }
 
-  const inputLead = await prisma.lead.findUnique({
-    where: { id: inputLeadId },
+  const inputLead = await prisma.lead.findFirst({
+    where: {
+      id: inputLeadId,
+      organizationId: serverUser.organizationId,
+    },
     select: {
       id: true,
+      organizationId: true,
       status: true,
       assignedToId: true,
     },
@@ -160,8 +168,11 @@ export async function POST(request: NextRequest) {
   }
 
   const walkthrough = inputWalkthroughId
-    ? await prisma.walkthrough.findUnique({
-        where: { id: inputWalkthroughId },
+    ? await prisma.walkthrough.findFirst({
+        where: {
+          id: inputWalkthroughId,
+          organizationId: serverUser.organizationId,
+        },
         select: {
           id: true,
           leadId: true,
@@ -199,6 +210,7 @@ export async function POST(request: NextRequest) {
     const estimate = await prisma.$transaction(async (tx) => {
       const createdEstimate = await tx.estimate.create({
         data: {
+          organizationId: inputLead.organizationId,
           leadId: inputLead.id,
           walkthroughId: walkthrough?.id ?? null,
           title: parsed.data.title ?? null,

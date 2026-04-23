@@ -4,7 +4,6 @@ import { logActivity } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 import {
   canCreateLead,
-  canReadLead,
   isAdmin,
   isSales,
   resolveServerUser,
@@ -41,6 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   const where = {
+    organizationId: serverUser.organizationId,
     ...(statusFilter ? { status: statusFilter as LeadStatus } : {}),
     ...(!isAdmin(serverUser) && !isSales(serverUser)
       ? { assignedToId: serverUser.id }
@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   const createInput = {
+    organizationId: serverUser.organizationId,
     ...parsed.data,
     assignedToId: serverUser.id,
     status: parsed.data.status ?? LeadStatus.new,

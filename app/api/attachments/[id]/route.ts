@@ -28,8 +28,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const attachment = await prisma.attachment.findUnique({
-    where: { id },
+  const attachment = await prisma.attachment.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: attachmentSelect,
   });
 
@@ -40,7 +40,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const entityCheck = await ensureAttachmentEntityExists(
     prisma,
     attachment.entityType,
-    attachment.entityId
+    attachment.entityId,
+    serverUser.organizationId
   );
   if (!entityCheck.ok) {
     return jsonError(entityCheck.message, 404);
@@ -49,7 +50,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const assignedToId = await resolveAttachmentEntityAssignedToId(
     prisma,
     attachment.entityType,
-    attachment.entityId
+    attachment.entityId,
+    serverUser.organizationId
   );
 
   const salesReadable =

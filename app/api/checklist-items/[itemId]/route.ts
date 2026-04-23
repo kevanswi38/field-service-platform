@@ -32,8 +32,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const item = await prisma.checklistItem.findUnique({
-    where: { id: itemId },
+  const item = await prisma.checklistItem.findFirst({
+    where: { id: itemId, organizationId: serverUser.organizationId },
     select: {
       ...checklistItemSelect,
       checklist: {
@@ -48,7 +48,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return jsonError("Checklist item not found.", 404);
   }
 
-  const assignedToId = await resolveChecklistAssignedToId(prisma, item.checklistId);
+  const assignedToId = await resolveChecklistAssignedToId(
+    prisma,
+    item.checklistId,
+    serverUser.organizationId
+  );
   if (
     !canReadAssignedRecord(serverUser, assignedToId, {
       allowSalesRead: Boolean(item.checklist?.walkthroughId),
@@ -81,8 +85,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const existing = await prisma.checklistItem.findUnique({
-    where: { id: itemId },
+  const existing = await prisma.checklistItem.findFirst({
+    where: { id: itemId, organizationId: serverUser.organizationId },
     select: checklistItemSelect,
   });
   if (!existing) {
@@ -91,7 +95,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   const assignedToId = await resolveChecklistAssignedToId(
     prisma,
-    existing.checklistId
+    existing.checklistId,
+    serverUser.organizationId
   );
   if (!canAccessAssignedRecord(serverUser, assignedToId)) {
     return writeForbiddenResponse();
@@ -139,8 +144,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         select: checklistItemSelect,
       });
 
-      const checklist = await tx.checklist.findUnique({
-        where: { id: updated.checklistId },
+      const checklist = await tx.checklist.findFirst({
+        where: { id: updated.checklistId, organizationId: serverUser.organizationId },
         select: { id: true, workOrderId: true, walkthroughId: true, title: true },
       });
 

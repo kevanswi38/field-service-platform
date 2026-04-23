@@ -398,3 +398,129 @@ Work-order execution capabilities were implemented within phase scope using back
 - Commit the cleaned Phase 5 diff
 - Push the phase as a governed unit
 - Proceed to the next governed phase
+
+---
+
+## 2026-04-17 - Phase 6 Organization Foundation
+
+**Result:** NOT SAFE
+
+---
+
+### Phase Scope
+
+PASS
+
+### Workflow Integrity
+
+PASS
+
+### Role & Permissions
+
+PASS
+
+### Backend Authority
+
+PASS
+
+### Shared System Impact
+
+MINOR
+
+### Data Contracts
+
+CHANGED
+
+### UI Patterns
+
+CONSISTENT
+
+### Regression Risk
+
+MEDIUM
+
+### File Integrity
+
+CLEAN
+
+---
+
+## Summary
+
+Organization ownership was introduced across core entities with backend scoping and lineage consistency enforcement, while preserving existing lead/estimate/conversion/work-order workflow meaning. Build and schema validation pass, but governance closure is blocked because migration apply could not be verified in this environment and the configured database reports a pre-existing migration-history mismatch (`20260417_work_order_estimate_scope_clarification` exists in DB but not in local migrations).
+
+---
+
+## Files Included in This Phase
+
+- prisma/schema.prisma
+- prisma/migrations/20260417_phase6_organization_foundation/migration.sql
+- lib/serverUser.ts
+- app/api/execution/entities.ts
+- app/api/leads/route.ts
+- app/api/leads/[id]/route.ts
+- app/api/leads/[id]/estimates/route.ts
+- app/api/leads/[id]/convert/route.ts
+- app/api/estimates/route.ts
+- app/api/walkthroughs/route.ts
+- app/api/work-orders/route.ts
+- app/api/scheduling/route.ts
+- app/api/work-orders/[workOrderId]/route.ts
+- app/api/work-orders/[workOrderId]/tasks/route.ts
+- app/api/work-orders/[workOrderId]/tasks/[taskId]/route.ts
+- app/api/work-orders/[workOrderId]/checklists/route.ts
+- app/api/walkthroughs/[walkthroughId]/checklists/route.ts
+- app/api/checklists/[checklistId]/route.ts
+- app/api/checklists/[checklistId]/items/route.ts
+- app/api/checklist-items/[itemId]/route.ts
+- app/api/notes/route.ts
+- app/api/notes/[id]/route.ts
+- app/api/attachments/route.ts
+- app/api/attachments/[id]/route.ts
+
+---
+
+## Structural Changes
+
+- Added minimal `Organization` model as top-level owner record.
+- Added required `organizationId` ownership fields on core operational entities and execution-support entities.
+- Added deterministic backfill strategy to assign existing records to a default organization.
+- Added organization FK constraints and organization-scoped indexes on owned tables.
+- Extended database lineage triggers so estimate/work-order/lead conversion paths enforce organization consistency.
+- Added backend organization scoping and organization-consistency checks across API read/write paths.
+
+---
+
+## Invalid States Eliminated
+
+- creation of ownerless core records through current API paths
+- estimate creation in a different organization than its lead/walkthrough origin
+- work order conversion linkage crossing organization boundaries for lead/estimate/customer/site lineage
+- attachment and note creation/read against entities outside authenticated user organization
+
+---
+
+## Violations
+
+- Migration apply verification is blocked: `prisma migrate dev` / `prisma migrate deploy` could not be executed because required escalated network commands were denied.
+- Configured database migration history mismatch is present: `20260417_work_order_estimate_scope_clarification` exists in DB history but is missing from local `prisma/migrations`.
+
+---
+
+## Warnings
+
+- None
+
+---
+
+## Governance Notes
+
+- `prisma validate` passed.
+- `npm run build` passed.
+- `prisma migrate status` confirms new phase migration is pending and exposes the pre-existing migration history divergence noted above.
+
+---
+
+## Next Step
+
+- Resolve migration-history alignment and run migration apply verification before marking this phase SAFE.

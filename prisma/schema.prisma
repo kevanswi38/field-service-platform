@@ -145,8 +145,34 @@ enum NoteType {
   observation
 }
 
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  leads           Lead[]
+  customers       Customer[]
+  contacts        Contact[]
+  sites           Site[]
+  walkthroughs    Walkthrough[]
+  estimates       Estimate[]
+  workOrders      WorkOrder[]
+  scheduleEvents  ScheduleEvent[]
+  contracts       Contract[]
+  assets          Asset[]
+  invoices        Invoice[]
+  tasks           Task[]
+  attachments     Attachment[]
+  checklists      Checklist[]
+  checklistItems  ChecklistItem[]
+  notes           Note[]
+}
+
 model User {
   id           String       @id @default(cuid())
+  organizationId String
   email        String       @unique
   passwordHash String?
   employeeCode String?      @unique
@@ -160,6 +186,7 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   assignedLeads          Lead[]          @relation("LeadAssignedTo")
   assignedWalkthroughs   Walkthrough[]   @relation("WalkthroughAssignedTo")
   assignedWorkOrders     WorkOrder[]     @relation("WorkOrderAssignedTo")
@@ -169,10 +196,13 @@ model User {
   assignedChecklistItems ChecklistItem[] @relation("ChecklistItemAssignedTo")
   uploadedAttachments    Attachment[]    @relation("AttachmentUploadedBy")
   createdNotes           Note[]          @relation("NoteCreatedBy")
+
+  @@index([organizationId, role])
 }
 
 model Lead {
   id                String     @id @default(cuid())
+  organizationId    String
   leadNumber        String?    @unique
   externalReference String?
   companyName       String?
@@ -196,6 +226,7 @@ model Lead {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
+  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   assignedTo         User?         @relation("LeadAssignedTo", fields: [assignedToId], references: [id])
   customer           Customer?     @relation(fields: [customerId], references: [id])
   convertedWorkOrder WorkOrder?    @relation("LeadConvertedWorkOrder", fields: [convertedWorkOrderId], references: [id])
@@ -205,10 +236,12 @@ model Lead {
 
   @@index([status, createdAt])
   @@index([assignedToId])
+  @@index([organizationId, status, createdAt])
 }
 
 model Customer {
   id                String    @id @default(cuid())
+  organizationId    String
   name              String
   customerNumber    String?   @unique
   externalReference String?
@@ -223,6 +256,7 @@ model Customer {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   leads        Lead[]
   contacts     Contact[]
   sites        Site[]
@@ -233,10 +267,12 @@ model Customer {
   activityLogs ActivityLog[]
 
   @@index([isActive, createdAt])
+  @@index([organizationId, isActive, createdAt])
 }
 
 model Contact {
   id                     String    @id @default(cuid())
+  organizationId         String
   customerId             String
   siteId                 String?
   externalReference      String?
@@ -252,15 +288,18 @@ model Contact {
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site         Site?         @relation(fields: [siteId], references: [id])
   activityLogs ActivityLog[]
 
   @@index([customerId, isPrimary])
+  @@index([organizationId, customerId, isPrimary])
 }
 
 model Site {
   id           String    @id @default(cuid())
+  organizationId String
   customerId   String
   siteCode     String?
   name         String
@@ -281,6 +320,7 @@ model Site {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   contacts     Contact[]
   walkthroughs Walkthrough[]
@@ -289,10 +329,12 @@ model Site {
   activityLogs ActivityLog[]
 
   @@index([customerId, isActive])
+  @@index([organizationId, customerId, isActive])
 }
 
 model Walkthrough {
   id              String            @id @default(cuid())
+  organizationId  String
   leadId          String?
   customerId      String?
   siteId          String?
@@ -310,6 +352,7 @@ model Walkthrough {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   lead         Lead?         @relation(fields: [leadId], references: [id])
   customer     Customer?     @relation(fields: [customerId], references: [id])
   site         Site?         @relation(fields: [siteId], references: [id])
@@ -320,10 +363,12 @@ model Walkthrough {
 
   @@index([status, scheduledStart])
   @@index([leadId])
+  @@index([organizationId, status, scheduledStart])
 }
 
 model Estimate {
   id                     String         @id @default(cuid())
+  organizationId         String
   leadId                 String
   walkthroughId          String?
   estimateNumber         String?        @unique
@@ -343,16 +388,19 @@ model Estimate {
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   lead         Lead          @relation(fields: [leadId], references: [id])
   walkthrough  Walkthrough?  @relation(fields: [walkthroughId], references: [id])
   workOrders   WorkOrder[]
   activityLogs ActivityLog[]
 
   @@index([status, createdAt])
+  @@index([organizationId, status, createdAt])
 }
 
 model WorkOrder {
   id                 String          @id @default(cuid())
+  organizationId     String
   customerId         String
   siteId             String
   estimateId         String          @unique
@@ -377,6 +425,7 @@ model WorkOrder {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer       Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   site           Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
   estimate       Estimate        @relation(fields: [estimateId], references: [id])
@@ -390,10 +439,12 @@ model WorkOrder {
 
   @@index([status, scheduledStart])
   @@index([customerId, siteId])
+  @@index([organizationId, status, scheduledStart])
 }
 
 model ScheduleEvent {
   id                 String              @id @default(cuid())
+  organizationId     String
   workOrderId        String?
   assignedToId       String?
   title              String
@@ -408,16 +459,19 @@ model ScheduleEvent {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   workOrder    WorkOrder?    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   assignedTo   User?         @relation("ScheduleEventAssignedTo", fields: [assignedToId], references: [id])
   activityLogs ActivityLog[]
 
   @@index([assignedToId, startsAt])
   @@index([status, startsAt])
+  @@index([organizationId, status, startsAt])
 }
 
 model Contract {
   id               String         @id @default(cuid())
+  organizationId   String
   customerId       String
   name             String
   description      String?
@@ -431,12 +485,16 @@ model Contract {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   activityLogs ActivityLog[]
+
+  @@index([organizationId, status, createdAt])
 }
 
 model Asset {
   id               String    @id @default(cuid())
+  organizationId   String
   siteId           String
   assetTag         String?   @unique
   name             String
@@ -451,15 +509,18 @@ model Asset {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   site         Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
   activityLogs ActivityLog[]
   tasks        Task[]
 
   @@index([siteId, createdAt])
+  @@index([organizationId, siteId, createdAt])
 }
 
 model Invoice {
   id                String        @id @default(cuid())
+  organizationId    String
   customerId        String
   workOrderId       String?
   invoiceNumber     String?       @unique
@@ -477,16 +538,19 @@ model Invoice {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   workOrder    WorkOrder?    @relation(fields: [workOrderId], references: [id])
   activityLogs ActivityLog[]
 
   @@index([status, dueDate])
   @@index([customerId, issuedAt])
+  @@index([organizationId, customerId, issuedAt])
 }
 
 model Task {
   id           String       @id @default(cuid())
+  organizationId String
   workOrderId  String
   assignedToId String?
   assetId      String?
@@ -504,6 +568,7 @@ model Task {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   workOrder  WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   assignedTo User?     @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
   asset      Asset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
@@ -512,10 +577,12 @@ model Task {
   @@index([workOrderId, sortOrder])
   @@index([assignedToId, status])
   @@index([status, dueAt])
+  @@index([organizationId, workOrderId, sortOrder])
 }
 
 model Attachment {
   id            String               @id @default(cuid())
+  organizationId String
   entityType    AttachmentEntityType
   entityId      String
   fileName      String
@@ -530,11 +597,13 @@ model Attachment {
   isPrimary     Boolean              @default(false)
   createdAt     DateTime             @default(now())
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   uploadedBy User? @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
   @@index([uploadedById, createdAt])
   @@index([entityType, category])
+  @@index([organizationId, entityType, entityId])
 }
 
 model Template {
@@ -557,6 +626,7 @@ model Template {
 
 model Checklist {
   id            String          @id @default(cuid())
+  organizationId String
   title         String
   description   String?
   status        ChecklistStatus @default(draft)
@@ -567,6 +637,7 @@ model Checklist {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   workOrder   WorkOrder?      @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
   walkthrough Walkthrough?    @relation(fields: [walkthroughId], references: [id], onDelete: SetNull)
   template    Template?       @relation(fields: [templateId], references: [id], onDelete: SetNull)
@@ -575,10 +646,12 @@ model Checklist {
   @@index([workOrderId, status])
   @@index([walkthroughId, status])
   @@index([templateId])
+  @@index([organizationId, createdAt])
 }
 
 model ChecklistItem {
   id           String    @id @default(cuid())
+  organizationId String
   checklistId  String
   assignedToId String?
   title        String
@@ -591,15 +664,18 @@ model ChecklistItem {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   checklist  Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   assignedTo User?     @relation("ChecklistItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([checklistId, sortOrder])
   @@index([assignedToId, isCompleted])
+  @@index([organizationId, checklistId, sortOrder])
 }
 
 model Note {
   id          String         @id @default(cuid())
+  organizationId String
   entityType  NoteEntityType
   entityId    String
   createdById String
@@ -609,10 +685,12 @@ model Note {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   createdBy User @relation("NoteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([entityType, entityId, createdAt])
   @@index([createdById, createdAt])
+  @@index([organizationId, entityType, entityId, createdAt])
 }
 
 model ActivityLog {

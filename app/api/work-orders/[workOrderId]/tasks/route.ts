@@ -39,8 +39,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -58,6 +58,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const tasks = await prisma.task.findMany({
     where: {
+      organizationId: serverUser.organizationId,
       workOrderId,
       status: status.data ?? undefined,
     },
@@ -82,8 +83,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -108,7 +109,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
   try {
     const task = await prisma.$transaction(async (tx) => {
-      const assetCheck = await ensureOptionalAssetExists(tx, parsed.data.assetId);
+      const assetCheck = await ensureOptionalAssetExists(
+        tx,
+        parsed.data.assetId,
+        serverUser.organizationId
+      );
       if (!assetCheck.ok) {
         throw new Error(assetCheck.message);
       }
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const createData: Prisma.TaskUncheckedCreateInput = {
+        organizationId: serverUser.organizationId,
         workOrderId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,

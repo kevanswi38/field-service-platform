@@ -8,6 +8,7 @@ import {
 
 export type ServerUser = {
   id: string;
+  organizationId: string;
   role: PlatformRole;
   email: string;
   firstName: string | null;
@@ -52,6 +53,7 @@ async function resolveSessionUserById(userId: string): Promise<ServerUser | null
     where: { id: userId },
     select: {
       id: true,
+      organizationId: true,
       role: true,
       email: true,
       firstName: true,
@@ -66,6 +68,7 @@ async function resolveSessionUserById(userId: string): Promise<ServerUser | null
 
   return {
     id: user.id,
+    organizationId: user.organizationId,
     role: user.role,
     email: user.email,
     firstName: user.firstName,

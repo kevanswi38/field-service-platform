@@ -32,8 +32,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const walkthrough = await prisma.walkthrough.findUnique({
-    where: { id: walkthroughId },
+  const walkthrough = await prisma.walkthrough.findFirst({
+    where: { id: walkthroughId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!walkthrough) {
@@ -54,7 +54,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const checklists = await prisma.checklist.findMany({
-    where: { walkthroughId, status: status.data ?? undefined },
+    where: {
+      organizationId: serverUser.organizationId,
+      walkthroughId,
+      status: status.data ?? undefined,
+    },
     orderBy: [{ createdAt: "asc" }],
     select: checklistSelect,
   });
@@ -75,8 +79,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const walkthrough = await prisma.walkthrough.findUnique({
-    where: { id: walkthroughId },
+  const walkthrough = await prisma.walkthrough.findFirst({
+    where: { id: walkthroughId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!walkthrough) {
@@ -110,6 +114,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const createData: Prisma.ChecklistUncheckedCreateInput = {
+        organizationId: serverUser.organizationId,
         walkthroughId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,

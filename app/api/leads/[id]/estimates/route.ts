@@ -44,8 +44,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return jsonError('Query parameter "leadId" must match the route lead id.', 400);
   }
 
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+  const lead = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!lead) {
@@ -58,6 +58,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const estimates = await prisma.estimate.findMany({
     where: {
+      organizationId: serverUser.organizationId,
       leadId: lead.id,
       ...(parsedQuery.data.status ? { status: parsedQuery.data.status } : {}),
     },
@@ -97,10 +98,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const lead = await prisma.lead.findUnique({
-    where: { id },
+  const lead = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: {
       id: true,
+      organizationId: true,
       assignedToId: true,
       status: true,
     },
@@ -124,6 +126,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const estimate = await prisma.$transaction(async (tx) => {
       const createdEstimate = await tx.estimate.create({
         data: {
+          organizationId: lead.organizationId,
           leadId: lead.id,
           title: parsed.data.title ?? null,
           description: parsed.data.description ?? null,

@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
   const entityCheck = await ensureNoteEntityExists(
     prisma,
     parsedQuery.data.entityType,
-    parsedQuery.data.entityId
+    parsedQuery.data.entityId,
+    serverUser.organizationId
   );
   if (!entityCheck.ok) {
     return jsonError(entityCheck.message, 404);
@@ -43,7 +44,8 @@ export async function GET(request: NextRequest) {
   const assignedToId = await resolveNoteEntityAssignedToId(
     prisma,
     parsedQuery.data.entityType,
-    parsedQuery.data.entityId
+    parsedQuery.data.entityId,
+    serverUser.organizationId
   );
 
   const salesReadable =
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
 
   const notes = await prisma.note.findMany({
     where: {
+      organizationId: serverUser.organizationId,
       entityType: parsedQuery.data.entityType,
       entityId: parsedQuery.data.entityId,
     },
@@ -92,7 +95,8 @@ export async function POST(request: NextRequest) {
   const entityCheck = await ensureNoteEntityExists(
     prisma,
     parsed.data.entityType,
-    parsed.data.entityId
+    parsed.data.entityId,
+    serverUser.organizationId
   );
   if (!entityCheck.ok) {
     return jsonError(entityCheck.message, 404);
@@ -101,7 +105,8 @@ export async function POST(request: NextRequest) {
   const assignedToId = await resolveNoteEntityAssignedToId(
     prisma,
     parsed.data.entityType,
-    parsed.data.entityId
+    parsed.data.entityId,
+    serverUser.organizationId
   );
   const salesWritable =
     parsed.data.entityType === NoteEntityType.walkthrough ||
@@ -119,6 +124,7 @@ export async function POST(request: NextRequest) {
     const note = await prisma.$transaction(async (tx) => {
       const created = await tx.note.create({
         data: {
+          organizationId: serverUser.organizationId,
           entityType: parsed.data.entityType,
           entityId: parsed.data.entityId,
           createdById: serverUser.id,
@@ -132,7 +138,8 @@ export async function POST(request: NextRequest) {
       const activityTarget = await resolveNoteActivityTarget(
         tx,
         created.entityType,
-        created.entityId
+        created.entityId,
+        serverUser.organizationId
       );
 
       if (activityTarget) {

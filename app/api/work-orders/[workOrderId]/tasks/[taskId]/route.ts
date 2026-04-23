@@ -29,8 +29,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -42,7 +42,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const task = await prisma.task.findFirst({
-    where: { id: taskId, workOrderId },
+    where: {
+      id: taskId,
+      workOrderId,
+      organizationId: serverUser.organizationId,
+    },
     select: taskSelect,
   });
 
@@ -61,8 +65,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -86,7 +90,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const existingTask = await prisma.task.findFirst({
-    where: { id: taskId, workOrderId },
+    where: {
+      id: taskId,
+      workOrderId,
+      organizationId: serverUser.organizationId,
+    },
     select: taskSelect,
   });
   if (!existingTask) {
@@ -100,7 +108,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   try {
     const task = await prisma.$transaction(async (tx) => {
-      const assetCheck = await ensureOptionalAssetExists(tx, parsed.data.assetId);
+      const assetCheck = await ensureOptionalAssetExists(
+        tx,
+        parsed.data.assetId,
+        serverUser.organizationId
+      );
       if (!assetCheck.ok) throw new Error(assetCheck.message);
 
       const templateCheck = await ensureOptionalTemplateExists(

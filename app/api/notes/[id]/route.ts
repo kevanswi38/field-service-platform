@@ -25,8 +25,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const note = await prisma.note.findUnique({
-    where: { id },
+  const note = await prisma.note.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
     select: noteSelect,
   });
 
@@ -37,7 +37,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const entityCheck = await ensureNoteEntityExists(
     prisma,
     note.entityType,
-    note.entityId
+    note.entityId,
+    serverUser.organizationId
   );
   if (!entityCheck.ok) {
     return jsonError(entityCheck.message, 404);
@@ -46,7 +47,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const assignedToId = await resolveNoteEntityAssignedToId(
     prisma,
     note.entityType,
-    note.entityId
+    note.entityId,
+    serverUser.organizationId
   );
 
   const salesReadable =

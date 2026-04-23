@@ -27,8 +27,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const checklist = await prisma.checklist.findUnique({
-    where: { id: checklistId },
+  const checklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
     select: {
       id: true,
       walkthroughId: true,
@@ -53,7 +53,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const items = await prisma.checklistItem.findMany({
-    where: { checklistId },
+    where: {
+      checklistId,
+      organizationId: serverUser.organizationId,
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: checklistItemSelect,
   });
@@ -69,8 +72,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const checklist = await prisma.checklist.findUnique({
-    where: { id: checklistId },
+  const checklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
     select: {
       id: true,
       workOrderId: true,
@@ -106,6 +109,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const item = await prisma.$transaction(async (tx) => {
       const created = await tx.checklistItem.create({
         data: {
+          organizationId: serverUser.organizationId,
           checklistId,
           title: parsed.data.title,
           description: parsed.data.description ?? null,

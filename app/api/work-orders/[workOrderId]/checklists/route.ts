@@ -32,8 +32,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -50,7 +50,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   const checklists = await prisma.checklist.findMany({
-    where: { workOrderId, status: status.data ?? undefined },
+    where: {
+      organizationId: serverUser.organizationId,
+      workOrderId,
+      status: status.data ?? undefined,
+    },
     orderBy: [{ createdAt: "asc" }],
     select: checklistSelect,
   });
@@ -71,8 +75,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const workOrder = await prisma.workOrder.findUnique({
-    where: { id: workOrderId },
+  const workOrder = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: { id: true, assignedToId: true },
   });
   if (!workOrder) {
@@ -106,6 +110,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       }
 
       const createData: Prisma.ChecklistUncheckedCreateInput = {
+        organizationId: serverUser.organizationId,
         workOrderId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
