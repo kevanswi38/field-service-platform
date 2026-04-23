@@ -42,6 +42,11 @@ const conversionAllowedKeys = new Set([
   "workOrderDescription",
 ]);
 
+const leadConversionAuthoritySelect = {
+  id: true,
+  assignedToId: true,
+};
+
 function canConvertLead(serverUser: ServerUser, assignedToId: string | null) {
   if (isAdmin(serverUser) || isSales(serverUser)) {
     return true;
@@ -105,6 +110,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const serverUser = auth.data;
   const { id } = await context.params;
 
+  const leadAuthority = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
+    select: leadConversionAuthoritySelect,
+  });
+  if (!leadAuthority) {
+    return jsonError("Lead not found.", 404);
+  }
+
+  if (!canConvertLead(serverUser, leadAuthority.assignedToId)) {
+    return writeForbiddenResponse();
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -138,10 +155,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
   });
   if (!lead) {
     return jsonError("Lead not found.", 404);
-  }
-
-  if (!canConvertLead(serverUser, lead.assignedToId)) {
-    return writeForbiddenResponse();
   }
 
   if (!convertibleLeadStatuses.has(lead.status)) {

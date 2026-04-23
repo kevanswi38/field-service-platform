@@ -20,6 +20,11 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+const leadAuthoritySelect = {
+  id: true,
+  assignedToId: true,
+} satisfies Prisma.LeadSelect;
+
 export async function GET(_request: NextRequest, context: RouteContext) {
   const auth = await resolveServerUser(_request);
   if (!auth.ok) {
@@ -29,17 +34,25 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
+  const leadAuthority = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
+    select: leadAuthoritySelect,
+  });
+
+  if (!leadAuthority) {
+    return jsonError("Lead not found.", 404);
+  }
+
+  if (!canReadLead(serverUser, leadAuthority.assignedToId)) {
+    return readForbiddenResponse();
+  }
+
   const lead = await prisma.lead.findFirst({
     where: { id, organizationId: serverUser.organizationId },
     select: leadSelect,
   });
-
   if (!lead) {
     return jsonError("Lead not found.", 404);
-  }
-
-  if (!canReadLead(serverUser, lead.assignedToId)) {
-    return readForbiddenResponse();
   }
 
   return NextResponse.json({ data: lead });
@@ -52,6 +65,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return auth.response;
   }
   const serverUser = auth.data;
+
+  const leadAuthority = await prisma.lead.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
+    select: leadAuthoritySelect,
+  });
+
+  if (!leadAuthority) {
+    return jsonError("Lead not found.", 404);
+  }
+
+  if (!canMutateLead(serverUser, leadAuthority.assignedToId)) {
+    return writeForbiddenResponse();
+  }
 
   let body: unknown;
   try {
@@ -72,10 +98,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   if (!existingLead) {
     return jsonError("Lead not found.", 404);
-  }
-
-  if (!canMutateLead(serverUser, existingLead.assignedToId)) {
-    return writeForbiddenResponse();
   }
 
   const changedKeys = leadChangedKeys(existingLead, parsed.data);

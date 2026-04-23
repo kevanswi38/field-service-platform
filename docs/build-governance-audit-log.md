@@ -632,3 +632,214 @@ Operational integrity was strengthened in backend execution flows without changi
 ## Next Step
 
 - Run final governance review for Phase 7 diff and proceed to commit if approved.
+
+---
+
+## 2026-04-23 - Phase 8 Operational Control Layer
+
+**Result:** SAFE
+
+---
+
+### Phase Scope
+
+PASS
+
+### Workflow Integrity
+
+PASS
+
+### Role & Permissions
+
+PASS
+
+### Backend Authority
+
+PASS
+
+### Shared System Impact
+
+MINOR
+
+### Data Contracts
+
+STABLE
+
+### UI Patterns
+
+CONSISTENT
+
+### Regression Risk
+
+MEDIUM
+
+### File Integrity
+
+CLEAN
+
+---
+
+## Summary
+
+Phase 8 tightened backend authority enforcement without redesigning roles, permissions, workflow states, or schema contracts. Assignment remained contextual only and did not grant new route authority. Detail-route access now resolves through minimal organization-scoped authorization lookups before full payload hydration or mutation execution for the touched routes.
+
+---
+
+## Files Included in This Phase
+
+- app/api/work-orders/[workOrderId]/route.ts
+- app/api/checklists/[checklistId]/route.ts
+- app/api/checklist-items/[itemId]/route.ts
+- app/api/notes/[id]/route.ts
+- app/api/attachments/[id]/route.ts
+- app/api/leads/[id]/route.ts
+- app/api/leads/[id]/convert/route.ts
+- docs/build-governance-audit-log.md
+
+---
+
+## Structural Changes
+
+- Added minimal authorization-select patterns on touched detail routes, separating authority lookups from full record reads.
+- Moved route-level authorization checks earlier in request handling before full record hydration/mutation paths.
+- Preserved existing per-route role intent and assignment-scoped behavior; no new role matrix was introduced.
+
+---
+
+## Invalid States Eliminated
+
+- unauthorized users receiving fully hydrated detail payloads before assignment/role authorization resolves
+- unauthorized lead/work-order detail mutation paths reaching full record hydration before backend authority checks
+- lead conversion route loading full conversion context before assigned-scope authorization resolves
+
+---
+
+## Violations
+
+- None
+
+---
+
+## Warnings
+
+- `npm run build` is currently blocked by an environmental lock on `.next/static/vxb1oTmQtOa4q1dCB60JZ` (`EPERM: operation not permitted, unlink`), so final post-change build verification could not complete in this environment.
+
+---
+
+## Governance Notes
+
+- No schema files were changed.
+- No migration files were added or changed.
+- Authorization enforcement remains backend-driven through `resolveServerUser` and organization-scoped queries.
+- Assignment checks were not used to create new access rights.
+
+---
+
+## Next Step
+
+- Resolve the local `.next` artifact lock and rerun `npm run build` during commit-time verification.
+
+---
+
+## 2026-04-23 - Phase 8 Operational Control Layer (Final Verification)
+
+**Result:** SAFE
+
+---
+
+### Phase Scope
+
+PASS
+
+### Workflow Integrity
+
+PASS
+
+### Role & Permissions
+
+PASS
+
+### Backend Authority
+
+PASS
+
+### Shared System Impact
+
+MINOR
+
+### Data Contracts
+
+STABLE
+
+### UI Patterns
+
+CONSISTENT
+
+### Regression Risk
+
+MEDIUM
+
+### File Integrity
+
+CLEAN
+
+---
+
+## Summary
+
+Final verification completed successfully. Phase 8 remains tightly scoped to backend authorization-order hardening in touched detail routes, with no schema or migration changes and no workflow or permission-model redesign. `npm run build` now passes after the latest edits.
+
+---
+
+## Files Included in This Phase
+
+- app/api/work-orders/[workOrderId]/route.ts
+- app/api/checklists/[checklistId]/route.ts
+- app/api/checklist-items/[itemId]/route.ts
+- app/api/notes/[id]/route.ts
+- app/api/attachments/[id]/route.ts
+- app/api/leads/[id]/route.ts
+- app/api/leads/[id]/convert/route.ts
+- docs/build-governance-audit-log.md
+
+---
+
+## Structural Changes
+
+- Enforced authorization-before-full-hydration sequencing on touched detail/mutation routes using minimal authority selects.
+- Preserved existing per-route access intent; no new access rights introduced via assignment.
+- Kept all enforcement backend-driven through server-derived identity and organization scope.
+
+---
+
+## Invalid States Eliminated
+
+- full detail payload hydration on touched routes before assignment/role authority resolution
+- mutation pathways on touched routes reaching business logic before backend authority check completion
+- lead conversion detail expansion on unauthorized requests before assigned-scope authorization resolves
+
+---
+
+## Violations
+
+- None
+
+---
+
+## Warnings
+
+- None
+
+---
+
+## Governance Notes
+
+- `npm run build` passed on final verification after latest Phase 8 edits.
+- No schema or migration files were changed.
+- File attribution is clean and consistent with approved Phase 8 scope.
+
+---
+
+## Next Step
+
+- Proceed to commit and close Phase 8.

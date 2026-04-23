@@ -16,6 +16,12 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+const noteAuthoritySelect = {
+  id: true,
+  entityType: true,
+  entityId: true,
+};
+
 export async function GET(_request: NextRequest, context: RouteContext) {
   const auth = await resolveServerUser(_request);
   if (!auth.ok) {
@@ -25,19 +31,19 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const note = await prisma.note.findFirst({
+  const noteAuthority = await prisma.note.findFirst({
     where: { id, organizationId: serverUser.organizationId },
-    select: noteSelect,
+    select: noteAuthoritySelect,
   });
 
-  if (!note) {
+  if (!noteAuthority) {
     return jsonError("Note not found.", 404);
   }
 
   const entityCheck = await ensureNoteEntityExists(
     prisma,
-    note.entityType,
-    note.entityId,
+    noteAuthority.entityType,
+    noteAuthority.entityId,
     serverUser.organizationId
   );
   if (!entityCheck.ok) {
@@ -46,14 +52,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const assignedToId = await resolveNoteEntityAssignedToId(
     prisma,
-    note.entityType,
-    note.entityId,
+    noteAuthority.entityType,
+    noteAuthority.entityId,
     serverUser.organizationId
   );
 
   const salesReadable =
-    note.entityType === NoteEntityType.walkthrough ||
-    note.entityType === NoteEntityType.estimate;
+    noteAuthority.entityType === NoteEntityType.walkthrough ||
+    noteAuthority.entityType === NoteEntityType.estimate;
 
   if (
     !isAdmin(serverUser) &&
@@ -61,6 +67,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     !canAccessAssignedRecord(serverUser, assignedToId)
   ) {
     return readForbiddenResponse();
+  }
+
+  const note = await prisma.note.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
+    select: noteSelect,
+  });
+  if (!note) {
+    return jsonError("Note not found.", 404);
   }
 
   return NextResponse.json({ data: note });

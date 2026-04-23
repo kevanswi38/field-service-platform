@@ -12,7 +12,6 @@ import {
 import {
   checklistActivityTarget,
   ensureOptionalTemplateExists,
-  resolveChecklistAssignedToId,
 } from "@/app/api/execution/entities";
 import { checklistSelect } from "@/app/api/execution/selects";
 import {
@@ -25,6 +24,24 @@ type RouteContext = {
   params: Promise<{ checklistId: string }>;
 };
 
+const checklistAuthoritySelect = {
+  id: true,
+  walkthroughId: true,
+  workOrder: {
+    select: { assignedToId: true },
+  },
+  walkthrough: {
+    select: { assignedToId: true },
+  },
+} satisfies Prisma.ChecklistSelect;
+
+function resolveChecklistAssignedToIdFromRecord(input: {
+  workOrder: { assignedToId: string | null } | null;
+  walkthrough: { assignedToId: string | null } | null;
+}) {
+  return input.workOrder?.assignedToId ?? input.walkthrough?.assignedToId ?? null;
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   const { checklistId } = await context.params;
   const auth = await resolveServerUser(request);
@@ -33,27 +50,31 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
-  const checklist = await prisma.checklist.findFirst({
+  const checklistAuthority = await prisma.checklist.findFirst({
     where: { id: checklistId, organizationId: serverUser.organizationId },
-    select: checklistSelect,
+    select: checklistAuthoritySelect,
   });
 
-  if (!checklist) {
+  if (!checklistAuthority) {
     return jsonError("Checklist not found.", 404);
   }
 
-  const assignedToId = await resolveChecklistAssignedToId(
-    prisma,
-    checklistId,
-    serverUser.organizationId
-  );
-  const allowSalesRead = Boolean(checklist.walkthroughId);
+  const assignedToId = resolveChecklistAssignedToIdFromRecord(checklistAuthority);
+  const allowSalesRead = Boolean(checklistAuthority.walkthroughId);
   if (
     !canReadAssignedRecord(serverUser, assignedToId, {
       allowSalesRead,
     })
   ) {
     return readForbiddenResponse();
+  }
+
+  const checklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
+    select: checklistSelect,
+  });
+  if (!checklist) {
+    return jsonError("Checklist not found.", 404);
   }
 
   return NextResponse.json({ data: checklist });
@@ -67,6 +88,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
+  const existingChecklist = await prisma.checklist.findFirst({
+    where: { id: checklistId, organizationId: serverUser.organizationId },
+    select: checklistAuthoritySelect,
+  });
+  if (!existingChecklist) {
+    return jsonError("Checklist not found.", 404);
+  }
+
+  const assignedToId = resolveChecklistAssignedToIdFromRecord(existingChecklist);
+  if (!canAccessAssignedRecord(serverUser, assignedToId)) {
+    return writeForbiddenResponse();
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -79,31 +113,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return jsonError(parsed.message, 400);
   }
 
-  const existingChecklist = await prisma.checklist.findFirst({
+  const existingChecklistRecord = await prisma.checklist.findFirst({
     where: { id: checklistId, organizationId: serverUser.organizationId },
     select: checklistSelect,
   });
-  if (!existingChecklist) {
+  if (!existingChecklistRecord) {
     return jsonError("Checklist not found.", 404);
   }
 
-  const assignedToId = await resolveChecklistAssignedToId(
-    prisma,
-    checklistId,
-    serverUser.organizationId
-  );
-  if (!canAccessAssignedRecord(serverUser, assignedToId)) {
-    return writeForbiddenResponse();
-  }
-
-  const nextStatus = parsed.data.status ?? existingChecklist.status;
+  const nextStatus = parsed.data.status ?? existingChecklistRecord.status;
   const statusExplicitlyChanged =
     typeof parsed.data.status !== "undefined" &&
-    parsed.data.status !== existingChecklist.status;
+    parsed.data.status !== existingChecklistRecord.status;
 
   let normalizedCompletedAt =
     typeof parsed.data.completedAt === "undefined"
-      ? existingChecklist.completedAt
+      ? existingChecklistRecord.completedAt
       : parsed.data.completedAt;
 
   if (
@@ -126,10 +151,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const normalizedCompletedAtChanged =
-    (existingChecklist.completedAt?.getTime() ?? null) !==
+    (existingChecklistRecord.completedAt?.getTime() ?? null) !==
     (normalizedCompletedAt?.getTime() ?? null);
 
-  const changedKeys = checklistChangedKeys(existingChecklist, parsed.data);
+  const changedKeys = checklistChangedKeys(existingChecklistRecord, parsed.data);
   if (changedKeys.length === 0 && !normalizedCompletedAtChanged) {
     return jsonError("No changes detected for this checklist.", 400);
   }
@@ -179,14 +204,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
       const target = checklistActivityTarget(checklist);
       if (target) {
-        const statusChanged = existingChecklist.status !== checklist.status;
+        const statusChanged = existingChecklistRecord.status !== checklist.status;
         const movedToCompleted =
           statusChanged &&
-          existingChecklist.status !== ChecklistStatus.completed &&
+          existingChecklistRecord.status !== ChecklistStatus.completed &&
           checklist.status === ChecklistStatus.completed;
 
         const completionTimestampChanged =
-          (existingChecklist.completedAt?.getTime() ?? null) !==
+          (existingChecklistRecord.completedAt?.getTime() ?? null) !==
           (checklist.completedAt?.getTime() ?? null);
         const nonStatusChangedKeys = changedKeys.filter((key) => key !== "status");
         if (completionTimestampChanged && !nonStatusChangedKeys.includes("completedAt")) {
@@ -199,18 +224,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             actorUserId: serverUser.id,
             ...target,
             action: "checklist.status_changed",
-            message: `Checklist status changed from ${existingChecklist.status} to ${checklist.status}`,
+            message: `Checklist status changed from ${existingChecklistRecord.status} to ${checklist.status}`,
             metadataJson: {
               checklistId: checklist.id,
-              from: existingChecklist.status,
+              from: existingChecklistRecord.status,
               to: checklist.status,
             },
           });
         }
 
-        if (
-          movedToCompleted
-        ) {
+        if (movedToCompleted) {
           await logActivity({
             client: tx,
             actorUserId: serverUser.id,
@@ -219,7 +242,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
             message: `Checklist completed: ${checklist.title}`,
             metadataJson: {
               checklistId: checklist.id,
-              from: existingChecklist.status,
+              from: existingChecklistRecord.status,
               to: checklist.status,
               completedAt: checklist.completedAt?.toISOString() ?? null,
             },

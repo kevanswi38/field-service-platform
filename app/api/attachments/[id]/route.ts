@@ -19,6 +19,12 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+const attachmentAuthoritySelect = {
+  id: true,
+  entityType: true,
+  entityId: true,
+};
+
 export async function GET(_request: NextRequest, context: RouteContext) {
   const auth = await resolveServerUser(_request);
   if (!auth.ok) {
@@ -28,19 +34,19 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const { id } = await context.params;
 
-  const attachment = await prisma.attachment.findFirst({
+  const attachmentAuthority = await prisma.attachment.findFirst({
     where: { id, organizationId: serverUser.organizationId },
-    select: attachmentSelect,
+    select: attachmentAuthoritySelect,
   });
 
-  if (!attachment) {
+  if (!attachmentAuthority) {
     return jsonError("Attachment not found.", 404);
   }
 
   const entityCheck = await ensureAttachmentEntityExists(
     prisma,
-    attachment.entityType,
-    attachment.entityId,
+    attachmentAuthority.entityType,
+    attachmentAuthority.entityId,
     serverUser.organizationId
   );
   if (!entityCheck.ok) {
@@ -49,14 +55,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
   const assignedToId = await resolveAttachmentEntityAssignedToId(
     prisma,
-    attachment.entityType,
-    attachment.entityId,
+    attachmentAuthority.entityType,
+    attachmentAuthority.entityId,
     serverUser.organizationId
   );
 
   const salesReadable =
-    attachment.entityType === AttachmentEntityType.walkthrough ||
-    attachment.entityType === AttachmentEntityType.estimate;
+    attachmentAuthority.entityType === AttachmentEntityType.walkthrough ||
+    attachmentAuthority.entityType === AttachmentEntityType.estimate;
 
   if (
     !isAdmin(serverUser) &&
@@ -64,6 +70,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     !canAccessAssignedRecord(serverUser, assignedToId)
   ) {
     return readForbiddenResponse();
+  }
+
+  const attachment = await prisma.attachment.findFirst({
+    where: { id, organizationId: serverUser.organizationId },
+    select: attachmentSelect,
+  });
+  if (!attachment) {
+    return jsonError("Attachment not found.", 404);
   }
 
   return NextResponse.json({ data: attachment });

@@ -147,6 +147,20 @@ const workOrderDetailSelect = {
   },
 } satisfies Prisma.WorkOrderSelect;
 
+const workOrderAuthoritySelect = {
+  id: true,
+  customerId: true,
+  siteId: true,
+  estimateId: true,
+  status: true,
+  assignedToId: true,
+  scheduledStart: true,
+  scheduledEnd: true,
+  completedAt: true,
+  closedAt: true,
+  canceledAt: true,
+} satisfies Prisma.WorkOrderSelect;
+
 function parseOptionalAssignedToId(
   value: unknown
 ): ParseResult<string | null> {
@@ -298,17 +312,25 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
+  const workOrderAuthority = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
+    select: workOrderAuthoritySelect,
+  });
+
+  if (!workOrderAuthority) {
+    return jsonError("Work order not found.", 404);
+  }
+
+  if (!canAccessAssignedRecord(serverUser, workOrderAuthority.assignedToId)) {
+    return readForbiddenResponse();
+  }
+
   const workOrder = await prisma.workOrder.findFirst({
     where: { id: workOrderId, organizationId: serverUser.organizationId },
     select: workOrderDetailSelect,
   });
-
   if (!workOrder) {
     return jsonError("Work order not found.", 404);
-  }
-
-  if (!canAccessAssignedRecord(serverUser, workOrder.assignedToId)) {
-    return readForbiddenResponse();
   }
 
   const assignableUsers = isAdmin(serverUser)
@@ -319,8 +341,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     data: workOrder,
     meta: {
       statuses: workOrderStatusValues,
-      allowedTransitions: transitionMap[workOrder.status],
-      canUpdate: canAccessAssignedRecord(serverUser, workOrder.assignedToId),
+      allowedTransitions: transitionMap[workOrderAuthority.status],
+      canUpdate: canAccessAssignedRecord(serverUser, workOrderAuthority.assignedToId),
       canEditAssignment: isAdmin(serverUser),
       assignableUsers,
     },
@@ -335,6 +357,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
   const serverUser = auth.data;
 
+  const existing = await prisma.workOrder.findFirst({
+    where: { id: workOrderId, organizationId: serverUser.organizationId },
+    select: workOrderAuthoritySelect,
+  });
+
+  if (!existing) {
+    return jsonError("Work order not found.", 404);
+  }
+
+  if (!canAccessAssignedRecord(serverUser, existing.assignedToId)) {
+    return writeForbiddenResponse();
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -345,19 +380,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const parsed = parseWorkOrderPatchPayload(body);
   if (!parsed.ok) {
     return jsonError(parsed.message, 400);
-  }
-
-  const existing = await prisma.workOrder.findFirst({
-    where: { id: workOrderId, organizationId: serverUser.organizationId },
-    select: workOrderDetailSelect,
-  });
-
-  if (!existing) {
-    return jsonError("Work order not found.", 404);
-  }
-
-  if (!canAccessAssignedRecord(serverUser, existing.assignedToId)) {
-    return writeForbiddenResponse();
   }
 
   if (
