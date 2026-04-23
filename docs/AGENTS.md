@@ -67,6 +67,60 @@ Failure to pass audit means the implementation is NOT complete and must not proc
 
 ---
 
+### Governance Principle — Excellence Over Adequacy
+
+All work must meet an **excellence standard**, not a “good enough” standard.
+
+This means:
+
+- no ambiguous logic may remain unresolved
+- no implicit behavior may be left unenforced
+- no assumptions may be made where system intent is unclear
+- no shortcuts may be taken to “make things work”
+- no partial enforcement is accepted where full enforcement is possible
+
+#### Required Standard
+
+Every phase must:
+
+- be **fully attributable** (no unrelated file changes)
+- be **fully enforced at the backend**
+- preserve **existing workflow meaning exactly**
+- avoid **schema changes unless strictly required and justified**
+- avoid **scope expansion under any circumstance**
+- be validated against **real operational behavior**, not just successful builds
+
+#### Disallowed Practices
+
+- “good enough” implementations
+- silent behavior changes
+- implicit permission logic
+- UI-based enforcement of critical rules
+- expanding scope to simplify implementation
+- introducing convenience logic that weakens system integrity
+
+#### Decision Rule
+
+If a solution is:
+
+- unclear → STOP and clarify
+- partially enforced → COMPLETE the enforcement
+- dependent on assumption → REMOVE the assumption
+- easier but weaker → REJECT it
+
+#### Core Principle
+
+> The system must behave correctly under all expected conditions, not just pass validation.
+
+Excellence is defined as:
+
+- predictable behavior
+- enforceable rules
+- zero unintended side effects
+- long-term scalability without rework
+
+No phase is considered complete until it meets this standard.
+
 ## Non-Negotiable Rules
 
 ### 1. Do not redesign workflows casually
